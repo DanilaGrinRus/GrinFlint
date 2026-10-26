@@ -26,9 +26,47 @@ jobs:
         working-directory: ffi/grin-wallet-ffi
         run: cargo check 2>&1 | tail -60
 
+  rust-ios:
+    name: Сборка FFI для iOS (XCFramework)
+    runs-on: macos-15
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain + таргеты iOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Сборка статических библиотек
+        working-directory: ffi/grin-wallet-ffi
+        run: |
+          cargo build --release --target aarch64-apple-ios
+          cargo build --release --target aarch64-apple-ios-sim
+          cargo build --release --target x86_64-apple-ios
+
+      - name: Упаковка XCFramework
+        working-directory: ffi
+        run: |
+          mkdir -p ios-sim
+          lipo -create \
+            grin-wallet-ffi/target/aarch64-apple-ios-sim/release/libgrin_wallet_ffi.a \
+            grin-wallet-ffi/target/x86_64-apple-ios/release/libgrin_wallet_ffi.a \
+            -output ios-sim/libgrin_wallet_ffi.a
+          xcodebuild -create-xcframework \
+            -library grin-wallet-ffi/target/aarch64-apple-ios/release/libgrin_wallet_ffi.a -headers include \
+            -library ios-sim/libgrin_wallet_ffi.a -headers include \
+            -output GrinWalletFFI.xcframework
+
+      - name: Артефакт XCFramework
+        uses: actions/upload-artifact@v4
+        with:
+          name: GrinWalletFFI.xcframework
+          path: ffi/GrinWalletFFI.xcframework
+          retention-days: 7
+
   build:
     name: Сборка GrinFlint (симулятор)
-    runs-on: macos-15
     steps:
       - name: Клонирование
         uses: actions/checkout@v4
