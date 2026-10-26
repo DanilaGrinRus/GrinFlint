@@ -66,6 +66,14 @@ fn fail<T>() -> *mut T {
     std::ptr::null_mut()
 }
 
+/// catch_unwind с AssertUnwindSafe (сырые указатели не RefUnwindSafe).
+fn guarded<T, F>(f: F) -> std::thread::Result<T>
+where
+    F: FnOnce() -> T,
+{
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+}
+
 /// Последняя ошибка (потоко-локальная копия). Не освобождать.
 #[no_mangle]
 pub extern "C" fn grin_last_error() -> *const c_char {
@@ -90,7 +98,7 @@ pub extern "C" fn grin_wallet_create(
     node_url: *const c_char,
     chain: *const c_char,
 ) -> *mut GrinWallet {
-    let result = std::panic::catch_unwind(|| {
+    let result = guarded(|| {
         let data_dir = c_str(data_dir).unwrap_or_else(|| ".".into());
         let node_url = c_str(node_url)
             .unwrap_or_else(|| "https://grinnode.live:3413".into());
@@ -150,7 +158,7 @@ pub unsafe extern "C" fn grin_wallet_destroy(handle: *mut GrinWallet) {
 /// Открыть кошелек паролем; возвращает {"address": <slatepack-адрес>}.
 #[no_mangle]
 pub extern "C" fn grin_wallet_open(handle: *mut GrinWallet, password: *const c_char) -> *mut c_char {
-    let result = std::panic::catch_unwind(|| -> Result<serde_json::Value, String> {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mask = w
@@ -186,7 +194,7 @@ pub extern "C" fn grin_wallet_create_seed(
     mnemonic_length: u32,
     mnemonic: *const c_char,
 ) -> *mut c_char {
-    let result = std::panic::catch_unwind(|| -> Result<serde_json::Value, String> {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mnemonic = c_str(mnemonic).map(ZeroingString::from);
@@ -226,7 +234,7 @@ pub extern "C" fn grin_wallet_balance(
     handle: *mut GrinWallet,
     refresh: i32,
 ) -> *mut c_char {
-    let result = std::panic::catch_unwind(|| -> Result<serde_json::Value, String> {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
         let (_updated, info) = w
             .owner
@@ -258,7 +266,7 @@ pub extern "C" fn grin_wallet_balance(
 /// История транзакций: [{"id","type","status","amount","fee","message","creation_ts"}].
 #[no_mangle]
 pub extern "C" fn grin_wallet_txs(handle: *mut GrinWallet) -> *mut c_char {
-    let result = std::panic::catch_unwind(|| -> Result<serde_json::Value, String> {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
         let (_updated, txs) = w
             .owner
@@ -313,7 +321,7 @@ pub extern "C" fn grin_wallet_send(
     dest: *const c_char,
     message: *const c_char,
 ) -> *mut c_char {
-    let result = std::panic::catch_unwind(|| -> Result<serde_json::Value, String> {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
         let dest = c_str(dest).ok_or("dest is null")?;
         let message = c_str(message).unwrap_or_default();
@@ -379,7 +387,7 @@ pub extern "C" fn grin_wallet_receive(
     handle: *mut GrinWallet,
     slatepack: *const c_char,
 ) -> *mut c_char {
-    let result = std::panic::catch_unwind(|| -> Result<serde_json::Value, String> {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
         let slatepack = c_str(slatepack).ok_or("slatepack is null")?;
 
@@ -429,7 +437,7 @@ pub extern "C" fn grin_wallet_finalize(
     handle: *mut GrinWallet,
     slatepack_response: *const c_char,
 ) -> i32 {
-    let result = std::panic::catch_unwind(|| -> Result<(), String> {
+    let result = guarded(|| -> Result<(), String> {
         let w = unsafe { &mut *handle };
         let slatepack = c_str(slatepack_response).ok_or("slatepack is null")?;
         let slate = w
@@ -461,7 +469,7 @@ pub extern "C" fn grin_wallet_finalize(
 /// Отмена неподтверждённой транзакции по slate_id (uuid-строка).
 #[no_mangle]
 pub extern "C" fn grin_wallet_cancel(handle: *mut GrinWallet, slate_id: *const c_char) -> i32 {
-    let result = std::panic::catch_unwind(|| -> Result<(), String> {
+    let result = guarded(|| -> Result<(), String> {
         let w = unsafe { &mut *handle };
         let slate_id = c_str(slate_id).ok_or("slate_id is null")?;
         let uuid = uuid::Uuid::parse_str(&slate_id).map_err(|e| format!("bad uuid: {e}"))?;
