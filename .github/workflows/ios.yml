@@ -67,6 +67,7 @@ jobs:
 
   build:
     name: Сборка GrinFlint (симулятор)
+    runs-on: macos-15
     steps:
       - name: Клонирование
         uses: actions/checkout@v4
