@@ -63,7 +63,7 @@ enum FeeTier: Int, CaseIterable, Identifiable {
     var eta: String {
         switch self {
         case .slow: return "~1 час"
-        case .standard: "~10 мин"
+        case .standard: return "~10 мин"
         case .fast: "~1 мин"
         }
     }
