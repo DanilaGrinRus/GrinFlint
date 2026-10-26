@@ -106,8 +106,12 @@ pub extern "C" fn grin_wallet_create(
         config.check_node_api_http_addr = node_url;
         config.chain_type = Some(chain_type);
 
-        let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, None)
-            .map_err(|e| format!("node client: {e}"))?;
+        let node_client = HTTPNodeClient::new(
+            &config.check_node_api_http_addr,
+            None,
+            std::time::Duration::from_secs(30),
+        )
+        .map_err(|e| format!("node client: {e}"))?;
 
         // instantiate wallet (копия inst_wallet из CLI grin-wallet)
         let mut wallet: WalletBox = Box::new(DefaultWalletImpl::new(node_client.clone()))
