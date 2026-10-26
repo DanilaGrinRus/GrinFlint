@@ -29,6 +29,22 @@ NEW = '''        // Заплатка GrinFlint: proc_pidinfo недоступе�
         None'''
 
 
+OLD_CARGO = '''default = [
+    "component",
+    "disk",
+    "network",
+    "system",
+    "user",
+]'''
+
+NEW_CARGO = '''default = [
+    "component",
+    "disk",
+    "system",
+    "user",
+]'''
+
+
 def main() -> int:
     root = sys.argv[1].rstrip("/")
     path = f"{root}/src/unix/apple/process.rs"
@@ -38,6 +54,14 @@ def main() -> int:
         return 1
     io.open(path, "w", encoding="utf-8").write(src.replace(OLD, NEW))
     print(f"patched: {path}")
+
+    cargo_path = f"{root}/Cargo.toml"
+    cargo = io.open(cargo_path, encoding="utf-8").read()
+    if OLD_CARGO not in cargo:
+        print("PATCH TARGET NOT FOUND в Cargo.toml", file=sys.stderr)
+        return 1
+    io.open(cargo_path, "w", encoding="utf-8").write(cargo.replace(OLD_CARGO, NEW_CARGO))
+    print(f"patched: {cargo_path} (отключена фича network — macOS-only API на iOS)")
     return 0
 
 
