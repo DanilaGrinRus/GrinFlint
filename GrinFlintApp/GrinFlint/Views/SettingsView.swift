@@ -1,0 +1,115 @@
+import SwiftUI
+
+/// Настройки кошелька.
+struct SettingsView: View {
+    @Environment(WalletViewModel.self) private var viewModel
+
+    @State private var nodeURL = "https://grinnode.live:3413"
+    @State private var showSeed = false
+
+    /// Демо-сид-фраза (НЕ используйте реальные средства с ней).
+    private let demoSeed = [
+        "wiggle", "planet", "frost", "oak", "letter", "bonus", "cloud",
+        "silver", "market", "dream", "cactus", "velvet", "harbor", "stone",
+        "window", "grape", "sunset", "anchor", "bridge", "forest",
+        "copper", "meadow", "ladder", "ember"
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    nodeSection
+                    securitySection
+                    aboutSection
+                }
+                .padding(16)
+            }
+            .background(Theme.background.ignoresSafeArea())
+            .navigationTitle("Настройки")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var nodeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Подключение")
+            GrinCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Адрес ноды Grin")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                    TextField("https://node:3413", text: $nodeURL)
+                        .font(Theme.mono(14))
+                        .foregroundStyle(Theme.textPrimary)
+                        .tint(Theme.accent)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                    Label("В демо-режиме подключение не используется", systemImage: "info.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+        }
+    }
+
+    private var securitySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Безопасность")
+            GrinCard {
+                VStack(spacing: 12) {
+                    Toggle("Требовать Face ID при входе", isOn: .constant(true))
+                        .tint(Theme.accent)
+                        .foregroundStyle(Theme.textPrimary)
+
+                    Divider().overlay(Theme.stroke)
+
+                    Button {
+                        showSeed = true
+                    } label: {
+                        Label("Показать seed-фразу", systemImage: "key.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+        .alert("Seed-фраза (демо)", isPresented: $showSeed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(demoSeed.joined(separator: " ") + "\n\nНикому не показывайте эти слова — от них зависит доступ ко всем средствам.")
+        }
+    }
+
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "О приложении")
+            GrinCard {
+                VStack(spacing: 12) {
+                    aboutRow(title: "Версия", value: "0.1.0 (demo)")
+                    aboutRow(title: "Монета", value: "Grin (Mimblewimble)")
+                    aboutRow(title: "Основа", value: "Дизайн и UX по мотивам Flint Wallet")
+                    Divider().overlay(Theme.stroke)
+                    Text("GrinFlint — некастодиальный кошелёк Grin. В этой сборке блокчейн-уровень заменён демо-реализацией; интеграция grin-wallet описана в протоколе WalletService.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func aboutRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.textTertiary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Theme.textPrimary)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}

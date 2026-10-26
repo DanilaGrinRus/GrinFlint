@@ -1,0 +1,155 @@
+import SwiftUI
+
+/// Получение Grin: адрес кошелька + приём входящего Slatepack.
+struct ReceiveView: View {
+    @Environment(WalletViewModel.self) private var viewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var slatepackInput = ""
+    @State private var message = ""
+    @State private var receivedTx: TransactionRecord?
+    @State private var isWorking = false
+    @State private var validationError: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                myAddressSection
+                incomingSection
+            }
+            .padding(16)
+        }
+        .background(Theme.background.ignoresSafeArea())
+        .navigationTitle("Получить GRIN")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Ошибка", isPresented: .constant(validationError != nil)) {
+            Button("OK") { validationError = nil }
+        } message: {
+            Text(validationError ?? "")
+        }
+        .sheet(item: $receivedTx) { tx in
+            ReceiveResultSheet(tx: tx) {
+                receivedTx = nil
+                dismiss()
+            }
+        }
+    }
+
+    private var myAddressSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Ваш адрес")
+            GrinCard {
+                VStack(spacing: 12) {
+                    CopyableField(title: "Grin-адрес", value: viewModel.slatepackAddress)
+                    Label("По этому адресу можно получать Slatepack-ответы",
+                          systemImage: "info.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+        }
+    }
+
+    private var incomingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Принять Slatepack от отправителя")
+            GrinCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Вставьте Slatepack-сообщение, которое вам прислали:")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textSecondary)
+
+                    TextEditor(text: $slatepackInput)
+                        .font(Theme.mono(13))
+                        .foregroundStyle(Theme.textPrimary)
+                        .tint(Theme.accent)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 90)
+                        .padding(8)
+                        .background(Color.black.opacity(0.3))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                    TextField("Комментарий (опционально)", text: $message)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Theme.textPrimary)
+                        .tint(Theme.accent)
+
+                    Button {
+                        Task { await accept() }
+                    } label: {
+                        if isWorking {
+                            ProgressView().tint(.black)
+                        } else {
+                            Text("Принять и зачислить")
+                        }
+                    }
+                    .buttonStyle(GrinButtonStyle())
+                    .disabled(slatepackInput.trimmingCharacters(in: .whitespaces).isEmpty || isWorking)
+                }
+            }
+        }
+    }
+
+    private func accept() async {
+        validationError = nil
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            receivedTx = try await viewModel.receive(
+                slatepack: slatepackInput,
+                message: message.trimmingCharacters(in: .whitespaces)
+            )
+        } catch let error as WalletError {
+            validationError = error.localizedDescription
+        } catch {
+            validationError = error.localizedDescription
+        }
+    }
+}
+
+/// Итог приёма транзакции.
+struct ReceiveResultSheet: View {
+    let tx: TransactionRecord
+    let onDone: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(Theme.positive)
+
+                VStack(spacing: 6) {
+                    Text("Транзакция принята")
+                        .font(Theme.rounded(22, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("Средства зачислены после подтверждения блока")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                GrinCard {
+                    HStack {
+                        Text("Получено")
+                        Spacer()
+                        Text("+\(GrinFormat.grin(tx.amount))")
+                            .font(Theme.mono(16))
+                            .foregroundStyle(Theme.positive)
+                    }
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.textPrimary)
+                }
+
+                Button("Готово", action: onDone)
+                    .buttonStyle(GrinButtonStyle())
+            }
+            .padding(16)
+            .frame(maxHeight: .infinity)
+            .background(Theme.background.ignoresSafeArea())
+            .navigationBarHidden(true)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+}
