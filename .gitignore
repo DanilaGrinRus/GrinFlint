@@ -47,3 +47,6 @@ target/
 # Прочее
 *.log
 .env
+
+# Вендор-патчи для iOS-сборки Rust (создаются в CI)
+ffi/grin-wallet-ffi/.patches/
