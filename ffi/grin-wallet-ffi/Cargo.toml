@@ -6,7 +6,10 @@ description = "C-обёртка (FFI) над grin-wallet v5.5.x для iOS/Swift
 license = "Apache-2.0"
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+# Только staticlib: для XCFramework нужен именно он.
+# cdylib не линкуется для iOS (___chkstk_darwin / version-min конфликты
+# между cc-объектами и target arm64-apple-ios10.0.0) и не нужен.
+crate-type = ["staticlib"]
 
 [dependencies]
 grin_wallet_api = "=5.5.1"

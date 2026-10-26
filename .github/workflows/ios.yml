@@ -49,6 +49,12 @@ jobs:
 
       - name: Сборка статических библиотек
         working-directory: ffi/grin-wallet-ffi
+        # Важно: cc-зависимости (sqlite, zstd, secp256k1) должны собираться
+        # с тем же deployment target, что и приложение (iOS 15),
+        # иначе при финальной линковке вылезут ___chkstk_darwin и
+        # «built for newer iOS version».
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
         run: |
           cargo build --release --target aarch64-apple-ios
           cargo build --release --target aarch64-apple-ios-sim
