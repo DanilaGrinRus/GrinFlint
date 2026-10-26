@@ -24,7 +24,7 @@ jobs:
 
       - name: Cargo check
         working-directory: ffi/grin-wallet-ffi
-        run: cargo check 2>&1 | tail -60
+        run: cargo check 2>&1 | tail -60; exit ${PIPESTATUS[0]}
 
   rust-ios:
     name: Сборка FFI для iOS (XCFramework)

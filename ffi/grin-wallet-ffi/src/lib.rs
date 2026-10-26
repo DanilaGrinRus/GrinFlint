@@ -15,9 +15,9 @@ use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{
     InitTxArgs, InitTxSendArgs, NodeClient, SlatepackAddress, WalletInst, WalletLCProvider,
 };
-use grin_wallet_util::grin_core::global::{self, ChainTypes};
-use grin_wallet_util::grin_keychain::{ExtKeychain, SecretKey};
-use grin_wallet_util::ZeroingString;
+use grin_core::global::{self, ChainTypes};
+use grin_keychain::{ExtKeychain, SecretKey};
+use grin_util::ZeroingString;
 use serde_json::json;
 
 type Lc = DefaultLCProvider<HTTPNodeClient, ExtKeychain>;
