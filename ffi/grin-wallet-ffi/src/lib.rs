@@ -16,7 +16,8 @@ use grin_wallet_libwallet::{
     InitTxArgs, InitTxSendArgs, NodeClient, SlatepackAddress, WalletInst, WalletLCProvider,
 };
 use grin_core::global::{self, ChainTypes};
-use grin_keychain::{ExtKeychain, SecretKey};
+use grin_keychain::ExtKeychain;
+use grin_util::secp::key::SecretKey;
 use grin_util::ZeroingString;
 use serde_json::json;
 
@@ -96,7 +97,8 @@ pub extern "C" fn grin_wallet_create(
         let chain = c_str(chain).unwrap_or_else(|| "mainnet".into());
 
         let chain_type = match chain.as_str() {
-            "floonet" => ChainTypes::Floonet,
+            // В grin 5.5.2 тестовая сеть называется Testnet (бывш. Floonet)
+            "testnet" | "floonet" => ChainTypes::Testnet,
             _ => ChainTypes::Mainnet,
         };
         global::set_local_chain_type(chain_type);
@@ -114,8 +116,9 @@ pub extern "C" fn grin_wallet_create(
         .map_err(|e| format!("node client: {e}"))?;
 
         // instantiate wallet (копия inst_wallet из CLI grin-wallet)
-        let mut wallet: WalletBox = Box::new(DefaultWalletImpl::new(node_client.clone()))
-            as WalletBox;
+        let wallet_impl = DefaultWalletImpl::new(node_client.clone())
+            .map_err(|e| format!("wallet impl: {e}"))?;
+        let mut wallet: WalletBox = Box::new(wallet_impl) as WalletBox;
         let lc = wallet.lc_provider().map_err(|e| format!("lc: {e}"))?;
         let _ = lc.set_top_level_directory(&config.data_file_dir);
 
@@ -152,9 +155,9 @@ pub extern "C" fn grin_wallet_open(handle: *mut GrinWallet, password: *const c_c
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mask = w
             .owner
-            .open_wallet(None, password)
+            .open_wallet(None, password, false)
             .map_err(|e| format!("open_wallet: {e}"))?;
-        w.mask = Some(mask);
+        w.mask = mask;
         let addr = w
             .owner
             .get_slatepack_address(w.mask.as_ref(), 0)
@@ -192,12 +195,12 @@ pub extern "C" fn grin_wallet_create_seed(
             .map_err(|e| format!("create_wallet: {e}"))?;
         let mask = w
             .owner
-            .open_wallet(None, password.clone())
+            .open_wallet(None, password.clone(), false)
             .map_err(|e| format!("open_wallet: {e}"))?;
-        w.mask = Some(mask.clone());
+        w.mask = mask;
         let phrase = w
             .owner
-            .get_mnemonic(Some(&mask), password)
+            .get_mnemonic(None, password)
             .map_err(|e| format!("get_mnemonic: {e}"))?;
         Ok(json!({ "mnemonic": phrase.to_string() }))
     });
@@ -259,20 +262,27 @@ pub extern "C" fn grin_wallet_txs(handle: *mut GrinWallet) -> *mut c_char {
         let w = unsafe { &mut *handle };
         let (_updated, txs) = w
             .owner
-            .retrieve_txs(w.mask.as_ref(), true, None, None)
+            .retrieve_txs(w.mask.as_ref(), true, None, None, None)
             .map_err(|e| format!("retrieve_txs: {e}"))?;
         let list: Vec<serde_json::Value> = txs
             .iter()
             .map(|t| {
+                let type_str = format!("{:?}", t.tx_type);
+                let cancelled = type_str.contains("Cancelled") || type_str.contains("Reverted");
+                let fee = t.fee.as_ref().map(|f| f.fee()).unwrap_or(0);
+                // получено: credited; отправлено: debited минус комиссия
+                let amount = if t.amount_credited > 0 {
+                    t.amount_credited
+                } else {
+                    t.amount_debited.saturating_sub(fee)
+                };
                 json!({
                     "id": t.id,
-                    "type": format!("{:?}", t.tx_type),
-                    "status": format!("{:?}", t.tx_proof).replace("TxProof", ""),
-                    "confirmed": t.confirmed,
-                    "amount": t.amount,
-                    "fee": t.fee,
-                    "message": t.messages.messages.first().map(|m| m.message.clone()).unwrap_or_default(),
-                    "creation_ts": t.creation_ts.map(|d| d.to_string()),
+                    "type": type_str,
+                    "confirmed": t.confirmed && !cancelled,
+                    "amount": amount,
+                    "fee": fee,
+                    "creation_ts": t.creation_ts.to_rfc3339(),
                     "slate_id": t.tx_slate_id.map(|u| u.to_string()),
                 })
             })
@@ -335,9 +345,9 @@ pub extern "C" fn grin_wallet_send(
             .init_send_tx(w.mask.as_ref(), args)
             .map_err(|e| format!("init_send_tx: {e}"))?;
         w.owner
-            .tx_lock_outputs(w.mask.as_ref(), &slate, 0)
+            .tx_lock_outputs(w.mask.as_ref(), &slate)
             .map_err(|e| format!("tx_lock_outputs: {e}"))?;
-        let fee = slate.fee(w.mask.as_ref()).map_err(|e| format!("fee: {e}"))?;
+        let fee = slate.fee_fields.fee();
         let recipient = SlatepackAddress::try_from(dest.as_str()).unwrap();
         let slatepack = w
             .owner
