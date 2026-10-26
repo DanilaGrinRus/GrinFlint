@@ -38,13 +38,14 @@ jobs:
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
 
-      - name: Патч sysinfo для iOS (proc_pidinfo отсутствует на iOS)
+      - name: Патчи зависимостей для iOS
         working-directory: ffi/grin-wallet-ffi
         run: |
           mkdir -p .patches
           curl -sL https://static.crates.io/crates/sysinfo/sysinfo-0.38.4.crate | tar xz -C .patches
-          python3 ../patches/patch_sysinfo.py .patches/sysinfo-0.38.4
-          printf '\n[patch.crates-io]\nsysinfo = { path = ".patches/sysinfo-0.38.4" }\n' >> Cargo.toml
+          curl -sL https://static.crates.io/crates/grin_wallet_impls/grin_wallet_impls-5.5.1.crate | tar xz -C .patches
+          python3 ../patches/patch_ios_deps.py .patches
+          printf '\n[patch.crates-io]\nsysinfo = { path = ".patches/sysinfo-0.38.4" }\ngrin_wallet_impls = { path = ".patches/grin_wallet_impls-5.5.1" }\n' >> Cargo.toml
 
       - name: Сборка статических библиотек
         working-directory: ffi/grin-wallet-ffi
