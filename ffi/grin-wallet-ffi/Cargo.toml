@@ -1,0 +1,22 @@
+[package]
+name = "grin-wallet-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "C-обёртка (FFI) над grin-wallet v5.5.x для iOS/Swift"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+grin_wallet_api = "5.5.1"
+grin_wallet_libwallet = "5.5.1"
+grin_wallet_impls = "5.5.1"
+grin_wallet_config = "5.5.1"
+grin_wallet_util = "5.5.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = "1"
+
+[profile.release]
+opt-level = 2

@@ -7,6 +7,25 @@ on:
     branches: [main]
 
 jobs:
+  rust-check:
+    name: Проверка FFI-крейта (cargo check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Зависимости сборки
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libssl-dev clang
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo check
+        working-directory: ffi/grin-wallet-ffi
+        run: cargo check 2>&1 | tail -60
+
   build:
     name: Сборка GrinFlint (симулятор)
     runs-on: macos-15
