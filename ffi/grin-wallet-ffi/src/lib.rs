@@ -131,7 +131,7 @@ pub extern "C" fn grin_wallet_create(
         let _ = lc.set_top_level_directory(&config.data_file_dir);
 
         let config_path = PathBuf::from(&config.data_file_dir).join("grin-wallet.toml");
-        let owner = Owner::new(std::sync::Arc::new(std::sync::Mutex::new(wallet)), None, config_path.clone());
+        let owner = Owner::new(std::sync::Arc::new(grin_util::Mutex::new(wallet)), None, config_path.clone());
         Ok(GrinWallet { owner, mask: None, config_path })
     });
     match result {
@@ -199,7 +199,7 @@ pub extern "C" fn grin_wallet_create_seed(
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mnemonic = c_str(mnemonic).map(ZeroingString::from);
         w.owner
-            .create_wallet(None, mnemonic, mnemonic_length as usize, password.clone())
+            .create_wallet(None, mnemonic, mnemonic_length, password.clone())
             .map_err(|e| format!("create_wallet: {e}"))?;
         let mask = w
             .owner
