@@ -7,19 +7,45 @@
 
 **Фаза 0 — завершена (демо-скелет).** Полный UI/UX: портфель, отправка/получение
 через Slatepack, история транзакций, настройки. Блокчейн-слой заменён
-`MockWalletService`. Сборка на данной машине не выполнялась (нет Xcode);
-код проверен по исходникам, проект готов к сборке на macOS с Xcode 16+.
+`MockWalletService`.
+
+**Фаза 1 — в работе, Rust-мост собран в CI.** Крейт `ffi/grin-wallet-ffi`
+компилируется (`cargo check`), собирается в XCFramework (device + simulator)
+на GitHub Actions macOS-раннере, Swift-обёртка `GrinWalletFFIService`
+подключена к таргету приложения под флагом `GRINFFI` и собирается в CI
+вместе с приложением. Разработка идёт целиком через GitHub Actions
+(локальной сборки с Xcode на машине разработчика нет).
+
+---
+
+## Решения по архитектуре ноды (зафиксировано 2026-10-27)
+
+- **Этап интеграции (Фаза 1–2):** кошелёк работает через внешнюю ноду —
+  дефолт `https://grinnode.live:3413`, в настройках поле «своя нода» (URL).
+- **Встроенная локальная нода — experimental-фича** (см. Фазу 5, приоритет
+  выше Tor-транспорта). Обоснование: в Mimblewimble состояние цепи —
+  это UTXO set + все kernels + заголовки (cut-through вырезает потраченное
+  на уровне протокола), поэтому «держать только необходимую часть у себя» —
+  штатный режим Grin-ноды (fast sync + pruning), а не хак. Оценка объёма —
+  порядка единиц ГБ; первичный синк долгий (часы суммарно), дальше
+  догоняющие обновления — минуты (блок в минуту, синхронизация возобновляемая,
+  дружит с короткими фоновыми окнами iOS). Реализация: крейты
+  `grin_node`/`grin_chain` собираются для iOS тем же пайплайном FFI.
 
 ---
 
 ## Фаза 1 — Интеграция grin-wallet (FFI) · цель: рабочий тестнет-кошелёк
 
-- [ ] Сборка `grin-wallet` как статической библиотеки:
-      `cargo build --release --target aarch64-apple-ios` (и `aarch64-apple-ios-sim`)
-- [ ] Паковка в `.xcframework` (device + simulator + macOS slice для тестов)
-- [ ] C-API через cbindgen: `wallet_init`, `wallet_recover`, `tx_create`,
-      `tx_finalize`, `slatepack_encrypt`, `slatepack_decrypt`, `scan_outputs`
-- [ ] `actor GrinWalletFFIService: WalletService` — реализация протокола поверх FFI
+- [x] Сборка `grin-wallet` как статической библиотеки для iOS
+      (`staticlib`, таргеты `aarch64-apple-ios`, `aarch64-apple-ios-sim`,
+      `x86_64-apple-ios`) — в CI
+- [x] Паковка в `.xcframework` (device + simulator) — артефакт
+      `GrinWalletFFI.xcframework` в GitHub Actions
+- [x] C-API руками (без cbindgen): `grin_wallet_create/open/create_seed/
+      balance/txs/send/receive/finalize/cancel`, `grin_last_error`,
+      `grin_string_free`; заголовок `ffi/include/grin_wallet_ffi.h`
+- [x] `actor GrinWalletFFIService: WalletService` — в таргете приложения
+      под флагом `GRINFFI` (сборка приложения в CI идёт с XCFramework)
 - [ ] Хранение seed в Keychain (SecItem), шифрование БД выходов (SQLCipher)
 - [ ] Подключение к ноде (REST API ноды Grin, порт 3413): баланс, высота, транзакции
 - [ ] Замена демо-Slatepack на настоящий (X25519 + AES-256-GCM), шифрование по адресу получателя
@@ -55,6 +81,10 @@
 
 ## Фаза 5 — После релиза (backlog)
 
+- [ ] **Встроенная локальная нода (experimental, приоритет выше Tor)** —
+      fast sync + pruning, фоновая догонка (BGProcessingTask), авто-логика:
+      своя нода, если синхронизирована, иначе внешняя; тогл в настройках.
+      Обоснование и оценки — в разделе «Решения по архитектуре ноды» выше.
 - [ ] Grinbox / Tor-транспорт для автоматического обмена Slatepack
 - [ ] Цены GRIN (коингеcko API) и эквивалент в фиате на портфеле
 - [ ] Виджет баланса (WidgetKit)
