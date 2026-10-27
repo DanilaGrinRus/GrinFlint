@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Подпись ad-hoc для симулятора в CI: без неё Keychain возвращает
+	     errSecMissingEntitlement (-34018). На устройстве используется
+	     обычная подпись профилем разработки. Файл лежит вне каталога
+	     синхронизированной группы приложения, чтобы не попасть в бандл. -->
+	<key>application-identifier</key>
+	<string>com.dan.grinflint</string>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>com.dan.grinflint</string>
+	</array>
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>

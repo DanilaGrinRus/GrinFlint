@@ -168,6 +168,12 @@ jobs:
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone' | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
           test -n "$DEVICE" || { echo "доступный симулятор не найден"; exit 1; }
           echo "device: $DEVICE"
+          # Keychain в симуляторе требует подписанное приложение: сборка идёт
+          # с CODE_SIGNING_ALLOWED=NO, поэтому подписываем ad-hoc сами.
+          # Без этого SecItemAdd возвращает -34018 (errSecMissingEntitlement).
+          ENT="$PWD/GrinFlintApp/SimulatorEntitlements.plist"
+          codesign --force --sign - --entitlements "$ENT" "$APP"
+          codesign --verify --verbose=2 "$APP"
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl install "$DEVICE" "$APP"

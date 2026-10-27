@@ -14,7 +14,12 @@ enum KeychainStore {
         case unexpectedStatus(OSStatus)
 
         var errorDescription: String? {
-            "Keychain ошибка \(self) — пересоздайте кошелёк или переустановите приложение."
+            switch self {
+            case .unexpectedStatus(let status) where status == errSecMissingEntitlement:
+                return "Keychain недоступен: приложение запущено без подписи (code signing)."
+            default:
+                return "Keychain ошибка \(self) — пересоздайте кошелёк или переустановите приложение."
+            }
         }
     }
 
