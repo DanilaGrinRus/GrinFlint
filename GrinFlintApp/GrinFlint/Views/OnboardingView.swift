@@ -33,7 +33,7 @@ struct OnboardingView: View {
                             appState.beginCreateWallet()
                         } label: {
                             if appState.isWorking && mode == .create {
-                                ProgressView().tint(.black)
+                                ProgressView().tint(.white)
                             } else {
                                 Text("Создать новый кошелёк")
                             }
@@ -171,7 +171,7 @@ struct RestoreWalletView: View {
                     appState.restore(mnemonic: restoreText)
                 } label: {
                     if appState.isWorking {
-                        ProgressView().tint(.black)
+                        ProgressView().tint(.white)
                     } else {
                         Text("Восстановить")
                     }

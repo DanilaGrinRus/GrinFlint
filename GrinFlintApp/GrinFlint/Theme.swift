@@ -1,24 +1,30 @@
 import SwiftUI
 
-/// Тёмная тема в духе Flint Wallet с фирменным жёлтым акцентом Grin.
+/// Тёмная тема Flint: холодный графитово-синий фон, мятный акцент.
+/// Токены синхронизированы с десктопным Flint (crates/slint-ui/ui/theme.slint):
+/// bg #090d11, surface #111820/#16202a, border #1d2833, text #e7eef4,
+/// muted #7c8b9a/#9fb0c0, accent #6ee7b7, warning #f5c451, danger #f87171.
+/// Философия: акцент — цвет данных и смысловых акцентов (адреса, суммы,
+/// ссылки), кнопки — тёмные с белым текстом.
 enum Theme {
-    static let background = Color(.black).opacity(0.98)
-    static let surface = Color(white: 0.11)
-    static let surfaceLight = Color(white: 0.16)
-    static let stroke = Color.white.opacity(0.08)
-    static let textPrimary = Color.white
-    static let textSecondary = Color.white.opacity(0.6)
-    static let textTertiary = Color.white.opacity(0.38)
+    static let background = Color(hex: 0x090d11)
+    static let surface = Color(hex: 0x111820)
+    static let surfaceLight = Color(hex: 0x16202a)
+    static let stroke = Color(hex: 0x1d2833)
+    static let textPrimary = Color(hex: 0xe7eef4)
+    static let textSecondary = Color(hex: 0x9fb0c0)
+    static let textTertiary = Color(hex: 0x7c8b9a)
 
-    /// Фирменный жёлтый Grin.
-    static let accent = Color(red: 0.996, green: 0.945, blue: 0.008)
-    static let accentDim = Color(red: 0.996, green: 0.945, blue: 0.008).opacity(0.15)
+    /// Мятный акцент Flint (единственный акцентный цвет).
+    static let accent = Color(hex: 0x6ee7b7)
+    static let accentDim = Color(hex: 0x6ee7b7).opacity(0.15)
 
-    static let positive = Color(red: 0.20, green: 0.83, blue: 0.60)
-    static let negative = Color(red: 0.96, green: 0.35, blue: 0.39)
-    static let warning = Color(red: 0.98, green: 0.65, blue: 0.10)
+    static let positive = Color(hex: 0x6ee7b7)
+    static let negative = Color(hex: 0xf87171)
+    static let warning = Color(hex: 0xf5c451)
 
-    static let cardRadius: CGFloat = 20
+    static let cardRadius: CGFloat = 18
+    static let controlRadius: CGFloat = 10
 
     static func mono(_ size: CGFloat, weight: Font.Weight = .medium) -> Font {
         .system(size: size, weight: weight, design: .monospaced)
@@ -29,7 +35,18 @@ enum Theme {
     }
 }
 
-/// Основная кнопка в стиле Flint (жёлтая, круглая).
+extension Color {
+    init(hex: UInt32) {
+        self = Color(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
+    }
+}
+
+/// Основная кнопка Flint: тёмная (surface-2), белый текст — как в десктопном
+/// shell; акцентным цветом подсвечиваются только иконки и ссылки.
 struct GrinButtonStyle: ButtonStyle {
     var isDestructive = false
     var isSecondary = false
@@ -41,19 +58,19 @@ struct GrinButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(buttonBackground(isPressed: configuration.isPressed))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
     }
 
     private var buttonForeground: Color {
         if isDestructive { return Theme.negative }
         if isSecondary { return Theme.textPrimary }
-        return .black
+        return Theme.textPrimary
     }
 
     private func buttonBackground(isPressed: Bool) -> Color {
-        if isDestructive { return Theme.negative.opacity(0.15) }
-        if isSecondary { return Theme.surfaceLight.opacity(isPressed ? 0.7 : 1) }
-        return Theme.accent.opacity(isPressed ? 0.8 : 1)
+        if isDestructive { return Theme.negative.opacity(0.12) }
+        if isSecondary { return Theme.surface.opacity(isPressed ? 0.7 : 1) }
+        return Theme.surfaceLight.opacity(isPressed ? 0.7 : 1)
     }
 }
 

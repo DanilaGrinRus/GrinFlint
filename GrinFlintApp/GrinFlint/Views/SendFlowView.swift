@@ -28,7 +28,7 @@ struct SendFlowView: View {
                     Task { await prepare() }
                 } label: {
                     if isWorking {
-                        ProgressView().tint(.black)
+                        ProgressView().tint(.white)
                     } else {
                         Text("Создать транзакцию")
                     }

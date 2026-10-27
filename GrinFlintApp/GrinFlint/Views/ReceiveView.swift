@@ -78,7 +78,7 @@ struct ReceiveView: View {
                         Task { await accept() }
                     } label: {
                         if isWorking {
-                            ProgressView().tint(.black)
+                            ProgressView().tint(.white)
                         } else {
                             Text("Принять и зачислить")
                         }
