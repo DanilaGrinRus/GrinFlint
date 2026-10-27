@@ -54,6 +54,18 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 - **grin-wallet CLI нескриптуем** на Windows: фразу читает только с
   консоли, пайпы не принимает. Все операции с кошельком — через наш FFI
   (тесты) или grin-wallet на Linux/macOS.
+- **API тестнет-ноды — порт 13413, НЕ 3413** (3413 — mainnet). Из-за этой
+  путаницы CI сутками опрашивал пустоту. Owner и foreign API живут на
+  одном порту.
+- **`.foreign_api_secret` должен совпадать с `.api_secret`** — кошелёк
+  ходит на foreign API (restore/refresh/push tx) с owner-секретом; при
+  расхождении нода отвечает 401, а кошелёк молча возвращает пустой
+  баланс. Локальная нода пользователя работает, потому что её
+  `.foreign_api_secret` пуст (foreign API без auth). Workflow уравнивает
+  секреты при старте ноды.
+- **Релизы-снапшоты не должны быть draft**: убитый таймаутом `gh release
+  create` оставляет черновик, а `gh release view` с GITHUB_TOKEN в CI
+  видит его как «release not found». Проверять `--json draft` после заливки.
 - `gh` = `C:\DHW\tools\gh.exe` (не в PATH git-bash).
 - Git Bash: пути `/c/...` → Windows `C:\...` через `pwd -W`.
 
@@ -112,8 +124,17 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 ## Тестовые активы
 
 - **CI-кошелёк**: секрет `TEST_WALLET_SEED` (24 слова BIP39), на нём
-  50 tGRIN (floonet). E2E-тест восстанавливает его и шлёт с него.
-  Локальная копия фразы: `C:\DHW\.tmp\grinsend\ci-seed.txt`.
+  50 tGRIN (floonet, проверено 2026-10-28). E2E-тест восстанавливает его
+  и шлёт с него. **Каждый зелёный прогон тратит эти 50** (перевод на
+  свежий кошелёк B без обратной ноги) — после успеха кошелёк нужно
+  пополнить заново. Полные реквизиты (seed + пароль `e2e-test-password`):
+  `C:\DHW\Docs\grinflint-ci-wallet.txt` — доверять ему; рабочая копия
+  `C:\DHW\.tmp\grinsend\ci-seed.txt` могла устареть.
+- Проверка баланса кошелька против живой ноды: тест
+  `ffi/grin-wallet-ffi/tests/check_funded_balance.rs` (env-gated:
+  `GRIN_E2E_SEED_FUNDED`, `GRIN_E2E_NODE_URL`, `GRIN_E2E_API_SECRET`;
+  образец `C:\DHW\.tmp\check-balance.ps1`). Первое обновление сканирует
+  UTXO ~5-7 минут — это норма, а не зависание.
 - Локальная testnet-нода Flint (другого проекта): API
   `http://127.0.0.1:13413` (не дефолтный 3413!), секрет
   `C:\DHW\.node\testnet\node\.api_secret`. Её можно использовать для
