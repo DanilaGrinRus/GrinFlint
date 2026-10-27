@@ -48,7 +48,10 @@ jobs:
             echo "снапшот $TAG найден — скачиваем"
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'floonet-chain-part-*'
             mkdir -p "$HOME/.grin/test"
+            set -o pipefail
             cat floonet-chain-part-* | tar -xJ -C "$HOME/.grin/test"
+            echo "untar exit=$?"
+            du -sh "$HOME/.grin/test"
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             echo "снапшот $TAG не найден — синкаем с нуля/из кеша"
@@ -80,8 +83,14 @@ jobs:
               -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' \
               | jq -r '.result.Ok.sync_status // empty')
             echo "poll $i: $S"
+            if [ -z "$S" ] && [ -f grin-node.log ]; then
+              echo "--- grin-node.log tail (пустой ответ API) ---"
+              tail -n 5 grin-node.log
+            fi
             [ "$S" = "no_sync" ] && exit 0
           done
+          echo "=== grin-node.log полностью (диагностика) ==="
+          cat grin-node.log 2>/dev/null | tail -n 80
           echo "синк не завершился за 40 минут — сохраняем частичный прогресс"
           exit 1
 

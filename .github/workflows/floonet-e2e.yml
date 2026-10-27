@@ -70,9 +70,13 @@ jobs:
               -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' \
               | jq -r '.result.Ok.sync_status // empty')
             echo "poll $i: $S"
+            if [ -z "$S" ] && [ -f grin-node.log ]; then
+              echo "--- grin-node.log tail (пустой ответ API) ---"
+              tail -n 5 grin-node.log
+            fi
             [ "$S" = "no_sync" ] && exit 0
           done
-          echo "нода не синхронизировалась за 100 минут"; tail -40 grin-node.log; exit 1
+          echo "нода не синхронизировалась за 40 минут"; tail -40 grin-node.log; exit 1
 
       - name: E2E roundtrip (50 tGRIN)
         working-directory: ffi/grin-wallet-ffi
