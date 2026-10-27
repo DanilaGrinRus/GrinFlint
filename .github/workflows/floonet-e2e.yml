@@ -2,7 +2,7 @@ name: Floonet E2E
 
 # Полный roundtrip tGRIN: funded seed (секрет TEST_WALLET_SEED) → send →
 # receive → finalize → post против собственной floonet-ноды в раннере.
-# Цепь берётся из кеша (синкает floonet-chain-cache.yml, воскресенье +
+# Цепь берётся из кеша (синкает testnet-chain-cache.yml, воскресенье +
 # вручную); свой fallback-синк — до 100 минут.
 # Не запускается на каждый пуш: только вручную и раз в неделю.
 
@@ -49,8 +49,8 @@ jobs:
       - name: Восстановить кеш floonet chain data
         uses: actions/cache/restore@v4
         with:
-          path: ~/.grin/floonet
-          key: floonet-chain-${{ steps.week.outputs.w }}
+          path: ~/.grin/test
+          key: testnet-chain-${{ steps.week.outputs.w }}
           fail-on-cache-miss: false
 
       - name: Запуск floonet-ноды
@@ -60,7 +60,7 @@ jobs:
       - name: Ожидание синхронизации ноды
         timeout-minutes: 160
         run: |
-          SECRET_FILE="$HOME/.grin/floonet/.api_secret"
+          SECRET_FILE="$HOME/.grin/test/.api_secret"
           for i in $(seq 1 300); do
             sleep 20
             [ -f "$SECRET_FILE" ] || continue
@@ -81,5 +81,5 @@ jobs:
           GRIN_E2E_SEED_FUNDED: ${{ secrets.TEST_WALLET_SEED }}
           GRIN_E2E_CONFIRM_ROUNDS: "30"
         run: |
-          export GRIN_E2E_API_SECRET="$(cat "$HOME/.grin/floonet/.api_secret")"
+          export GRIN_E2E_API_SECRET="$(cat "$HOME/.grin/test/.api_secret")"
           cargo test --test e2e_floonet -- --nocapture

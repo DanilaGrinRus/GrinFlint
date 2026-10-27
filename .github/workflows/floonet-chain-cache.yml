@@ -1,6 +1,6 @@
 name: Floonet Chain Cache
 
-# Прогрев кеша цепи floonet: синхронизирует ноду и сохраняет ~/.grin/floonet
+# Прогрев кеша цепи floonet: синхронизирует ноду и сохраняет ~/.grin/test
 # в кеш GitHub Actions — ДАЖЕ если синк не завершился (частичные данные).
 # Следующая попытка восстановит частичный кеш и продолжит с того же места.
 # E2E-прогоны (floonet-e2e.yml) стартуют с тёплым кешем и доезжают за минуты.
@@ -43,12 +43,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="floonet-chain-2026-10-27"
+          TAG="testnet-chain-2026-10-27"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "снапшот $TAG найден — скачиваем"
-            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'floonet-chain-part-*'
-            mkdir -p "$HOME/.grin/floonet"
-            cat floonet-chain-part-* | tar -xJ -C "$HOME/.grin/floonet"
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'testnet-chain-part-*'
+            mkdir -p "$HOME/.grin/test"
+            cat testnet-chain-part-* | tar -xJ -C "$HOME/.grin/test"
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             echo "снапшот $TAG не найден — синкаем с нуля/из кеша"
@@ -59,8 +59,8 @@ jobs:
         if: steps.snapshot.outputs.found != 'true'
         uses: actions/cache/restore@v4
         with:
-          path: ~/.grin/floonet
-          key: floonet-chain-${{ steps.week.outputs.w }}
+          path: ~/.grin/test
+          key: testnet-chain-${{ steps.week.outputs.w }}
           fail-on-cache-miss: false
 
       - name: Запуск floonet-ноды
@@ -70,7 +70,7 @@ jobs:
       - name: Синхронизация (до 280 минут)
         timeout-minutes: 330
         run: |
-          SECRET_FILE="$HOME/.grin/floonet/.api_secret"
+          SECRET_FILE="$HOME/.grin/test/.api_secret"
           for i in $(seq 1 840); do
             sleep 20
             [ -f "$SECRET_FILE" ] || continue
@@ -91,7 +91,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh cache delete "floonet-chain-${{ steps.week.outputs.w }}" \
+          gh cache delete "testnet-chain-${{ steps.week.outputs.w }}" \
             --repo "$GITHUB_REPOSITORY" || true
 
       - name: Сохранить кеш цепи (всегда — частичный тоже полезен)
@@ -99,5 +99,5 @@ jobs:
         continue-on-error: true
         uses: actions/cache/save@v4
         with:
-          path: ~/.grin/floonet
-          key: floonet-chain-${{ steps.week.outputs.w }}
+          path: ~/.grin/test
+          key: testnet-chain-${{ steps.week.outputs.w }}
