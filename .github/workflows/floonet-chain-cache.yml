@@ -43,7 +43,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="floonet-chain-2026-10-27"
+          TAG="floonet-chain-2026-10-28"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "снапшот $TAG найден — скачиваем"
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'floonet-chain-part-*'
