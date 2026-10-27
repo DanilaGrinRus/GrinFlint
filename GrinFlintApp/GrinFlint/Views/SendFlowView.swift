@@ -7,7 +7,6 @@ struct SendFlowView: View {
 
     @State private var destination = ""
     @State private var amountText = ""
-    @State private var message = ""
     @State private var feeTier: FeeTier = .standard
     @State private var proposal: SendProposal?
     @State private var isWorking = false
@@ -22,7 +21,6 @@ struct SendFlowView: View {
             VStack(spacing: 20) {
                 destinationSection
                 amountSection
-                messageSection
                 feeSection
                 Button {
                     Task { await prepare() }
@@ -111,20 +109,6 @@ struct SendFlowView: View {
         }
     }
 
-    private var messageSection: some View {
-        GrinCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Сообщение (опционально)")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.textSecondary)
-                TextField("Например: за кофе", text: $message)
-                    .font(.system(size: 16))
-                    .foregroundStyle(Theme.textPrimary)
-                    .tint(Theme.accent)
-            }
-        }
-    }
-
     private var feeSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader(title: "Комиссия сети")
@@ -174,7 +158,6 @@ struct SendFlowView: View {
             proposal = try await viewModel.prepareSend(
                 destination: trimmedDestination,
                 amount: amount,
-                message: message.trimmingCharacters(in: .whitespaces),
                 feeTier: feeTier
             )
         } catch let error as WalletError {

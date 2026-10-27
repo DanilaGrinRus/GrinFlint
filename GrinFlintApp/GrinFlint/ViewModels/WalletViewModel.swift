@@ -49,9 +49,9 @@ final class WalletViewModel {
         }
     }
 
-    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
         do {
-            let proposal = try await service.prepareSend(destination: destination, amount: amount, message: message, feeTier: feeTier)
+            let proposal = try await service.prepareSend(destination: destination, amount: amount, feeTier: feeTier)
             await syncFromService()
             return proposal
         } catch let error as WalletError {
@@ -60,9 +60,9 @@ final class WalletViewModel {
         }
     }
 
-    func receive(slatepack: String, message: String) async throws -> TransactionRecord {
+    func receive(slatepack: String) async throws -> TransactionRecord {
         do {
-            let record = try await service.receive(slatepack: slatepack, message: message)
+            let record = try await service.receive(slatepack: slatepack)
             await syncFromService()
             return record
         } catch let error as WalletError {

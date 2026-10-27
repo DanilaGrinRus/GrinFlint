@@ -33,10 +33,10 @@ protocol WalletService: AnyObject {
 
     /// Создать транзакцию на отправку и получить Slatepack для контрагента.
     /// `destination` — Slatepack-адрес получателя (grin1…).
-    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal
+    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal
 
     /// Принять Slatepack контрагента и зачислить средства.
-    func receive(slatepack: String, message: String) async throws -> TransactionRecord
+    func receive(slatepack: String) async throws -> TransactionRecord
 
     /// Экспортировать транзакцию как Slatepack (пока не передали контрагенту).
     func exportSlatepack(txID: UUID) async -> String?
@@ -140,7 +140,7 @@ final class MockWalletService: WalletService {
         }
     }
 
-    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
         let fee = feeTier.fee
         let dest = destination.trimmingCharacters(in: .whitespaces)
         guard !dest.isEmpty else { throw WalletError.invalidAddress }
@@ -152,26 +152,22 @@ final class MockWalletService: WalletService {
         try await Task.sleep(nanoseconds: 400_000_000)
 
         let txID = UUID()
-        let slatepack = SlatepackCodec.encode(
-            sender: slatepackAddress,
-            amount: amount,
-            message: message
-        )
+        let slatepack = SlatepackCodec.encode(sender: slatepackAddress, amount: amount)
         // Блокируем средства и создаём неподтверждённую исходящую запись.
         balance.spendable -= needed
         balance.locked += needed
         transactions.insert(
             TransactionRecord(
                 id: txID, type: .sent, status: .unconfirmed,
-                amount: -amount, fee: fee, message: message,
+                amount: -amount, fee: fee, message: "",
                 slatepack: slatepack, counterpart: dest, createdAt: Date()
             ),
             at: 0
         )
-        return SendProposal(amount: amount, fee: fee, message: message, slatepack: slatepack, txID: txID)
+        return SendProposal(amount: amount, fee: fee, slatepack: slatepack, txID: txID)
     }
 
-    func receive(slatepack: String, message: String) async throws -> TransactionRecord {
+    func receive(slatepack: String) async throws -> TransactionRecord {
         guard SlatepackCodec.isValid(slatepack) else {
             throw WalletError.invalidSlatepack
         }
@@ -182,7 +178,7 @@ final class MockWalletService: WalletService {
         balance.awaiting += amount
         let record = TransactionRecord(
             id: UUID(), type: .received, status: .unconfirmed,
-            amount: amount, fee: 0, message: message,
+            amount: amount, fee: 0, message: "",
             slatepack: nil, counterpart: String(slatepack.prefix(24)) + "…",
             createdAt: Date()
         )

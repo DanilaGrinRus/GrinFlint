@@ -93,7 +93,6 @@ struct TransactionRecord: Identifiable, Equatable {
 struct SendProposal {
     var amount: Decimal
     var fee: Decimal
-    var message: String
     var slatepack: String
     var txID: UUID
 }

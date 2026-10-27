@@ -6,7 +6,6 @@ struct ReceiveView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var slatepackInput = ""
-    @State private var message = ""
     @State private var receivedTx: TransactionRecord?
     @State private var isWorking = false
     @State private var validationError: String?
@@ -69,11 +68,6 @@ struct ReceiveView: View {
                         .background(Color.black.opacity(0.3))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                    TextField("Комментарий (опционально)", text: $message)
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.textPrimary)
-                        .tint(Theme.accent)
-
                     Button {
                         Task { await accept() }
                     } label: {
@@ -104,10 +98,7 @@ struct ReceiveView: View {
         isWorking = true
         defer { isWorking = false }
         do {
-            receivedTx = try await viewModel.receive(
-                slatepack: slatepackInput,
-                message: message.trimmingCharacters(in: .whitespaces)
-            )
+            receivedTx = try await viewModel.receive(slatepack: slatepackInput)
         } catch let error as WalletError {
             validationError = error.localizedDescription
         } catch {

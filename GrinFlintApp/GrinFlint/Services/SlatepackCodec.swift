@@ -14,7 +14,6 @@ enum SlatepackCodec {
         var version: Int
         var sender: String
         var amount: DecimalString
-        var message: String
         var nonce: Int
     }
 
@@ -36,12 +35,11 @@ enum SlatepackCodec {
     }
 
     /// Формирует демо-Slatepack из данных.
-    static func encode(sender: String, amount: Decimal, message: String) -> String {
+    static func encode(sender: String, amount: Decimal) -> String {
         let payload = Payload(
             version: 1,
             sender: sender,
             amount: DecimalString(amount),
-            message: message,
             nonce: Int.random(in: 0..<Int.max)
         )
         guard let json = try? JSONEncoder().encode(payload) else { return prefix }

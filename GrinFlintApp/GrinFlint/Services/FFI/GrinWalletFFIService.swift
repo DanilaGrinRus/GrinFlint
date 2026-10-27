@@ -77,23 +77,22 @@ actor GrinWalletFFIService: WalletService {
         transactions = t.txs.map(Self.mapTx)
     }
 
-    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
         let nano = Self.nano(amount)
         let dest = destination.trimmingCharacters(in: .whitespaces)
         guard !dest.isEmpty else { throw WalletError.invalidAddress }
         let result: GrinSendResult = try GrinFFI.call({ h in
-            grin_wallet_send(h.raw, nano, dest, message)
+            grin_wallet_send(h.raw, nano, dest)
         }, handle: handle, as: GrinSendResult.self)
         return SendProposal(
             amount: amount,
             fee: Self.grin(result.fee),
-            message: message,
             slatepack: result.slatepack,
             txID: UUID(uuidString: result.slate_id) ?? UUID()
         )
     }
 
-    func receive(slatepack: String, message: String) async throws -> TransactionRecord {
+    func receive(slatepack: String) async throws -> TransactionRecord {
         let result: GrinReceiveResult = try GrinFFI.call({ h in
             grin_wallet_receive(h.raw, slatepack)
         }, handle: handle, as: GrinReceiveResult.self)
@@ -101,7 +100,7 @@ actor GrinWalletFFIService: WalletService {
         // Транзакция появится в истории после refresh().
         return TransactionRecord(
             id: UUID(), type: .received, status: .unconfirmed,
-            amount: 0, fee: 0, message: message,
+            amount: 0, fee: 0, message: "",
             slatepack: nil, counterpart: nil, createdAt: Date(),
             responseSlatepack: result.slatepack
         )
