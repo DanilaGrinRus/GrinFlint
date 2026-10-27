@@ -55,10 +55,24 @@ jobs:
 
       - name: Запуск floonet-ноды
         run: |
+          # Быстрый старт, чтобы сгенерировались конфиг и секреты
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node-boot.log 2>&1 &
+          for i in $(seq 1 30); do sleep 2; [ -f "$HOME/.grin/test/.api_secret" ] && break; done
+          pkill -f "grin" || true
+          sleep 3
+          # Кошелёк ходит на foreign API с owner-секретом: уравниваем секреты,
+          # иначе foreign API отвечает 401 и restore/refresh возвращает пусто.
+          TOML="$HOME/.grin/test/grin-server.toml"
+          if [ -f "$TOML" ]; then
+            sed -i "s|^foreign_api_secret_path = .*|foreign_api_secret_path = \"$HOME/.grin/test/.api_secret\"|" "$TOML"
+            grep foreign_api_secret_path "$TOML" || true
+          fi
+          cp "$HOME/.grin/test/.api_secret" "$HOME/.grin/test/.foreign_api_secret"
+          # Чистый старт с уравненными секретами
           nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
 
       - name: Ожидание синхронизации ноды
-        timeout-minutes: 5
+        timeout-minutes: 50
         run: |
           SECRET_FILE="$HOME/.grin/test/.api_secret"
           for i in $(seq 1 120); do
