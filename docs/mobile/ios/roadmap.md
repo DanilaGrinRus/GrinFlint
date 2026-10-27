@@ -15,8 +15,9 @@ finalize → post → подтверждение в цепи (`tests/e2e_floonet
 проверено против локальной ноды 5.5.2; CI-кошелёк с 50 tGRIN живёт
 в секрете `TEST_WALLET_SEED`, в CI сумма перевода — 1 tGRIN). Смоук-тест жизненного цикла (оффлайн)
 зелёный; workflow `floonet-e2e.yml` гоняет roundtrip еженедельно и
-вручную. Осталось в Фазе 1: Keychain-хранение seed, подключение
-UI-флоу к реальному сервису, Share Extension / URL scheme.
+вручную. UI-флоу подключён к реальному сервису в коде (`WalletFactory` →
+FFI, шаг завершения ответным Slatepack), но на устройстве не проверялся.
+Осталось в Фазе 1: Keychain-хранение seed, Share Extension / URL scheme.
 
 ---
 

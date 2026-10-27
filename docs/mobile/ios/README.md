@@ -24,7 +24,11 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 - Rust FFI-крейт `ffi/grin-wallet-ffi`: init/recover/open/balance/txs/
   send/receive/finalize/cancel над grin-wallet 5.5.1; сборка в XCFramework
   для iOS (device+sim) в CI.
-- Swift-обёртка `GrinWalletFFIService` компилируется в CI (флаг `GRINFFI`).
+- Swift-обёртка `GrinWalletFFIService` компилируется в CI (флаг `GRINFFI`);
+  в `GRINFFI`-сборке `WalletFactory` отдаёт именно её, экраны показывают
+  реальный бэкенд. Отправка получила шаг завершения ответным Slatepack,
+  приём — показ ответного Slatepack (run 40588800281, сборка зелёная).
+  На устройстве/симуляторе флоу не проверялся.
 - Смоук-тест lifecycle (оффлайн) — зелёный.
 - **E2E roundtrip tGRIN против живой floonet-ноды** — проверен вживую
   локально (2026-10-27, 50 tGRIN) и вынесен в CI (`floonet-e2e.yml`);
@@ -44,7 +48,8 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 | Кеш цепи | ключ `testnet-chain-<год-W<номер>`; греет `floonet-chain-cache.yml` (вс 20:27 UTC), E2E только restore |
 | E2E | `floonet-e2e.yml` (dispatch + cron пн 04:17 UTC) |
 | Секреты ноды | `.api_secret` и `.foreign_api_secret` у кошелька должны **совпадать** (workflow уравнивает их при старте; иначе restore/refresh кошелька получает 401 и пустой баланс) |
-| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс 50 tGRIN, прогон тратит сумму перевода + комиссию (~1.0125 tGRIN при дефолте) → хватает примерно на 49 прогонов |
+| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс после зелёного E2E 48.977 tGRIN, прогон тратит 1 tGRIN + комиссию (~0.023) → хватает примерно на 47 прогонов |
+| Нода по умолчанию | floonet-сборка: `http://127.0.0.1:13413` (`WalletFactory.floonetNodeURL`); mainnet-дефолт `https://grinnode.live:3413` — только для Фазы 4 |
 
 ## Локальная нода пользователя (для ручных прогонов)
 
