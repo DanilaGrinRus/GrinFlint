@@ -40,6 +40,21 @@ protocol WalletService: AnyObject {
 
     /// Экспортировать транзакцию как Slatepack (пока не передали контрагенту).
     func exportSlatepack(txID: UUID) async -> String?
+
+    /// Название блокчейн-бэкенда (для экрана настроек).
+    var backendName: String { get }
+
+    /// true — демо-реализация без сети (MockWalletService).
+    var isDemo: Bool { get }
+
+    /// Завершить отправку: принять ответный Slatepack получателя и отправить
+    /// финальную транзакцию в сеть. В демо — просто подтверждает запись.
+    func finalize(slatepackResponse: String) async throws
+}
+
+extension WalletService {
+    var backendName: String { "демо-режим (MockWalletService)" }
+    var isDemo: Bool { true }
 }
 
 /// Демо-реализация: всё состояние в памяти, транзакции не уходят в сеть.
@@ -177,5 +192,18 @@ final class MockWalletService: WalletService {
 
     func exportSlatepack(txID: UUID) async -> String? {
         transactions.first { $0.id == txID }?.slatepack
+    }
+
+    func finalize(slatepackResponse: String) async throws {
+        guard SlatepackCodec.isValid(slatepackResponse) else {
+            throw WalletError.invalidSlatepack
+        }
+        try await Task.sleep(nanoseconds: 400_000_000)
+        guard let index = transactions.firstIndex(where: { $0.type == .sent && $0.status == .unconfirmed }) else {
+            return
+        }
+        transactions[index].status = .confirmed
+        balance.locked -= (transactions[index].amount.magnitude + transactions[index].fee)
+        transactions[index].slatepack = nil
     }
 }

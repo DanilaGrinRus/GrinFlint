@@ -43,10 +43,17 @@ struct SendFlowView: View {
         .navigationTitle("Отправить GRIN")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $proposal) { proposal in
-            SendResultSheet(proposal: proposal) {
-                self.proposal = nil
-                dismiss()
-            }
+            SendResultSheet(
+                proposal: proposal,
+                requiresFinalize: !viewModel.isDemoMode,
+                onFinalize: { response in
+                    try await viewModel.finalize(slatepackResponse: response)
+                },
+                onDone: {
+                    self.proposal = nil
+                    dismiss()
+                }
+            )
         }
         .alert("Не удалось создать транзакцию", isPresented: .constant(sendError != nil)) {
             Button("OK") { sendError = nil }
@@ -178,63 +185,44 @@ struct SendFlowView: View {
     }
 }
 
-/// Итог отправки: Slatepack для передачи контрагенту.
+/// Итог отправки: Slatepack для получателя и (в FFI-режиме) шаг завершения
+/// ответным Slatepack — без него транзакция в Grin не попадает в сеть.
 struct SendResultSheet: View {
     let proposal: SendProposal
+    let requiresFinalize: Bool
+    let onFinalize: (String) async throws -> Void
     let onDone: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    @State private var response = ""
+    @State private var isWorking = false
+    @State private var isFinished = false
+    @State private var finalizeError: String?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 56))
-                        .foregroundStyle(Theme.positive)
+                    header
+                    summaryCard
 
-                    VStack(spacing: 6) {
-                        Text("Транзакция создана")
-                            .font(Theme.rounded(22, weight: .bold))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text("Средства заблокированы до подтверждения")
-                            .font(.system(size: 14))
+                    if !requiresFinalize {
+                        CopyableField(title: "Slatepack для получателя", value: proposal.slatepack, isMultiline: true)
+                        Text("Передайте этот Slatepack получателю любым способом — в Grin транзакции завершаются совместно.")
+                            .font(.system(size: 13))
                             .foregroundStyle(Theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                    } else if isFinished {
+                        Label("Перевод отправлен в сеть", systemImage: "paperplane.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.positive)
+                        Text("Подтверждение появится в истории после обновления баланса.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        CopyableField(title: "Slatepack для получателя", value: proposal.slatepack, isMultiline: true)
+                        finalizeSection
                     }
-
-                    GrinCard {
-                        VStack(spacing: 12) {
-                            HStack {
-                                Text("Сумма")
-                                Spacer()
-                                Text(GrinFormat.grin(proposal.amount))
-                                    .font(Theme.mono(15))
-                            }
-                            HStack {
-                                Text("Комиссия")
-                                Spacer()
-                                Text(GrinFormat.grin(proposal.fee))
-                                    .font(Theme.mono(15))
-                            }
-                            Divider().overlay(Theme.stroke)
-                            HStack {
-                                Text("Итого")
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Text(GrinFormat.grin(proposal.amount + proposal.fee))
-                                    .font(Theme.mono(15, weight: .semibold))
-                            }
-                        }
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.textPrimary)
-                    }
-
-                    CopyableField(title: "Slatepack для получателя", value: proposal.slatepack, isMultiline: true)
-
-                    Text("Передайте этот Slatepack получателю любым способом — в Grin транзакции завершаются совместно.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
 
                     Button("Готово", action: onDone)
                         .buttonStyle(GrinButtonStyle())
@@ -243,9 +231,100 @@ struct SendResultSheet: View {
             }
             .background(Theme.background.ignoresSafeArea())
             .navigationBarHidden(true)
+            .alert("Не удалось завершить перевод", isPresented: .constant(finalizeError != nil)) {
+                Button("OK") { finalizeError = nil }
+            } message: {
+                Text(finalizeError ?? "")
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var header: some View {
+        VStack(spacing: 6) {
+            Image(systemName: isFinished ? "paperplane.circle.fill" : "checkmark.circle.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(isFinished ? Theme.positive : Theme.accent)
+            Text(isFinished ? "Перевод завершён" : "Транзакция создана")
+                .font(Theme.rounded(22, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+            Text(isFinished ? "Средства ушли в сеть" : "Средства заблокированы до завершения")
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    private var summaryCard: some View {
+        GrinCard {
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Сумма")
+                    Spacer()
+                    Text(GrinFormat.grin(proposal.amount))
+                        .font(Theme.mono(15))
+                }
+                HStack {
+                    Text("Комиссия")
+                    Spacer()
+                    Text(GrinFormat.grin(proposal.fee))
+                        .font(Theme.mono(15))
+                }
+                Divider().overlay(Theme.stroke)
+                HStack {
+                    Text("Итого")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Text(GrinFormat.grin(proposal.amount + proposal.fee))
+                        .font(Theme.mono(15, weight: .semibold))
+                }
+            }
+            .font(.system(size: 15))
+            .foregroundStyle(Theme.textPrimary)
+        }
+    }
+
+    private var finalizeSection: some View {
+        GrinCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Ответный Slatepack от получателя")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+
+                TextEditor(text: $response)
+                    .font(Theme.mono(13))
+                    .foregroundStyle(Theme.textPrimary)
+                    .tint(Theme.accent)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 90)
+                    .padding(8)
+                    .background(Color.black.opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                Button {
+                    Task { await finish() }
+                } label: {
+                    if isWorking {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Завершить перевод")
+                    }
+                }
+                .buttonStyle(GrinButtonStyle())
+                .disabled(response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isWorking)
+            }
+        }
+    }
+
+    private func finish() async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await onFinalize(response)
+            isFinished = true
+        } catch {
+            finalizeError = error.localizedDescription
+        }
     }
 }
 

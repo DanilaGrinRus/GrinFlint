@@ -80,6 +80,9 @@ struct TransactionRecord: Identifiable, Equatable {
     var slatepack: String?   // Slatepack, если транзакция ещё не передана контрагенту
     var counterpart: String? // адрес/примечание контрагента
     let createdAt: Date
+    /// Ответный Slatepack входящей транзакции (FFI-режим): его нужно вернуть
+    /// отправителю, чтобы тот завершил перевод. У исходящих и демо — nil.
+    var responseSlatepack: String? = nil
 
     static func == (lhs: TransactionRecord, rhs: TransactionRecord) -> Bool {
         lhs.id == rhs.id && lhs.status == rhs.status && lhs.amount == rhs.amount

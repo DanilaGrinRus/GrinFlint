@@ -11,11 +11,15 @@ final class WalletViewModel {
     private(set) var isRefreshing = false
     private(set) var errorMessage: String?
 
-    /// Демо-режим: без подключения к ноде и grin-wallet.
-    let isDemoMode = true
+    /// Демо-режим: сервис работает без сети Grin (MockWalletService).
+    let isDemoMode: Bool
+    /// Имя блокчейн-бэкенда для экрана настроек.
+    let backendName: String
 
     init(service: WalletService = MockWalletService()) {
         self.service = service
+        self.isDemoMode = service.isDemo
+        self.backendName = service.backendName
     }
 
     /// Загрузить состояние из сервиса (вызывать после open()/refresh()).
@@ -69,5 +73,18 @@ final class WalletViewModel {
 
     func exportSlatepack(txID: UUID) async -> String? {
         await service.exportSlatepack(txID: txID)
+    }
+
+    /// Завершить отправку ответным Slatepack получателя.
+    func finalize(slatepackResponse: String) async throws {
+        let trimmed = slatepackResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw WalletError.invalidSlatepack }
+        do {
+            try await service.finalize(slatepackResponse: trimmed)
+            await syncFromService()
+        } catch let error as WalletError {
+            errorMessage = error.localizedDescription
+            throw error
+        }
     }
 }

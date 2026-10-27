@@ -22,6 +22,10 @@ actor GrinWalletFFIService: WalletService {
     private let password: String
     private(set) var slatepackAddress = ""
 
+    /// Для экрана настроек: это не демо-заглушка.
+    nonisolated var backendName: String { "grin-wallet 5.5.1 (FFI)" }
+    nonisolated var isDemo: Bool { false }
+
     /// spendable / awaiting / locked (наногрин → Decimal GRIN при чтении)
     private(set) var balance = Balance.zero
     private(set) var transactions: [TransactionRecord] = []
@@ -93,12 +97,13 @@ actor GrinWalletFFIService: WalletService {
         let result: GrinReceiveResult = try GrinFFI.call({ h in
             grin_wallet_receive(h.raw, slatepack)
         }, handle: handle, as: GrinReceiveResult.self)
-        // Ответный slatepack возвращается контрагенту вне этого метода;
-        // транзакция появится в истории после refresh().
+        // Ответный slatepack нужно вернуть отправителю — он завершит перевод.
+        // Транзакция появится в истории после refresh().
         return TransactionRecord(
             id: UUID(), type: .received, status: .unconfirmed,
             amount: 0, fee: 0, message: message,
-            slatepack: result.slatepack, counterpart: nil, createdAt: Date()
+            slatepack: nil, counterpart: nil, createdAt: Date(),
+            responseSlatepack: result.slatepack
         )
     }
 

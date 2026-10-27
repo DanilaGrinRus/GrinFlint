@@ -32,6 +32,12 @@ struct SettingsView: View {
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Настройки")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                // Старый дефолт mainnet-ноды в floonet-сборке заменяем на локальную.
+                if WalletFactory.network == .floonet, nodeURL == WalletFactory.mainnetNodeURL {
+                    nodeURL = WalletFactory.floonetNodeURL
+                }
+            }
         }
     }
 
@@ -49,7 +55,9 @@ struct SettingsView: View {
                         .tint(Theme.accent)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
-                    Label(viewModel.isDemoMode ? "В демо-режиме подключение не используется" : "Применится при следующем запуске приложения", systemImage: "info.circle")
+                    Label(viewModel.isDemoMode
+                          ? "В демо-режиме подключение не используется"
+                          : "floonet-нода; применится при следующем запуске", systemImage: "info.circle")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textTertiary)
                 }
@@ -99,12 +107,20 @@ struct SettingsView: View {
 
                     Divider().overlay(Theme.stroke)
 
-                    Button {
-                        showSeed = true
-                    } label: {
-                        Label("Показать seed-фразу", systemImage: "key.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
+                    if viewModel.isDemoMode {
+                        Button {
+                            showSeed = true
+                        } label: {
+                            Label("Показать seed-фразу (демо)", systemImage: "key.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    } else {
+                        Label("Seed-фраза показывалась при создании кошелька; в открытом виде приложение её не хранит",
+                              systemImage: "lock.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -122,11 +138,14 @@ struct SettingsView: View {
             SectionHeader(title: "О приложении")
             GrinCard {
                 VStack(spacing: 12) {
-                    aboutRow(title: "Версия", value: "0.1.0 (demo)")
+                    aboutRow(title: "Версия", value: viewModel.isDemoMode ? "0.1.0 (demo)" : "0.1.0 (ffi)")
+                    aboutRow(title: "Бэкенд", value: viewModel.backendName)
                     aboutRow(title: "Монета", value: "Grin (Mimblewimble)")
                     aboutRow(title: "Основа", value: "Дизайн и UX по мотивам Flint Wallet")
                     Divider().overlay(Theme.stroke)
-                    Text("GrinFlint — некастодиальный кошелёк Grin. В этой сборке блокчейн-уровень заменён демо-реализацией; интеграция grin-wallet описана в протоколе WalletService.")
+                    Text(viewModel.isDemoMode
+                         ? "GrinFlint — некастодиальный кошелёк Grin. В этой сборке блокчейн-уровень заменён демо-реализацией."
+                         : "Блокчейн-уровень — официальный grin-wallet 5.5.1 через FFI. Сборка не аудирована: не используйте реальные средства.")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
