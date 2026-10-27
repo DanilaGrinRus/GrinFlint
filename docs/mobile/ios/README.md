@@ -32,8 +32,9 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 - Смоук-тест lifecycle (оффлайн) — зелёный.
 - **E2E roundtrip tGRIN против живой floonet-ноды** — проверен вживую
   локально (2026-10-27, 50 tGRIN) и вынесен в CI (`floonet-e2e.yml`);
-  сумма в CI по умолчанию 1 tGRIN (`GRIN_E2E_AMOUNT_NGRIN`), иначе
-  комиссия не покрывается из остатка баланса.
+  сумма в CI 1 tGRIN (`GRIN_E2E_AMOUNT_NGRIN`), иначе комиссия не
+  покрывается из остатка баланса. С 2026-10-28 есть нога возврата B→A
+  (`GRIN_E2E_RETURN_TO_A=1`), поэтому прогон не сжигает сумму.
 - Face ID/Touch ID на вход и подпись + автоблокировка — код написан, сборка
   зелёная; на устройстве не проверялось (симулятора нет).
 - Тема Flint (мята/графит) применена к UI-демо (веб-рендер экранов).
@@ -48,7 +49,7 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 | Кеш цепи | ключ `testnet-chain-<год-W<номер>`; греет `floonet-chain-cache.yml` (вс 20:27 UTC), E2E только restore |
 | E2E | `floonet-e2e.yml` (dispatch + cron пн 04:17 UTC) |
 | Секреты ноды | `.api_secret` и `.foreign_api_secret` у кошелька должны **совпадать** (workflow уравнивает их при старте; иначе restore/refresh кошелька получает 401 и пустой баланс) |
-| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс после зелёного E2E 48.977 tGRIN, прогон тратит 1 tGRIN + комиссию (~0.023) → хватает примерно на 47 прогонов |
+| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс после прогона 40593127479 — 48.929 tGRIN, прогон с возвратом B→A стоит ~0.05 tGRIN (сумма возвращается) |
 | Нода по умолчанию | floonet-сборка: `http://127.0.0.1:13413` (`WalletFactory.floonetNodeURL`); mainnet-дефолт `https://grinnode.live:3413` — только для Фазы 4 |
 
 ## Локальная нода пользователя (для ручных прогонов)

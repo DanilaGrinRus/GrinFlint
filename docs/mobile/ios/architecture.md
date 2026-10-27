@@ -21,7 +21,7 @@ UI никогда не обращается к блокчейну напряму
 | Файл | Назначение |
 |---|---|
 | `PortfolioView.swift` | Портфель: баланс, действия, последние операции |
-| `SendFlowView.swift` | Отправка: сумма → сообщение → комиссия → Slatepack; `SendResultSheet` |
+| `SendFlowView.swift` | Отправка: адрес → сумма → комиссия → Slatepack; `SendResultSheet` + шаг завершения ответным Slatepack |
 | `ReceiveView.swift` | Адрес кошелька + приём Slatepack; `ReceiveResultSheet` |
 | `TransactionsView.swift` | История с группировкой по дням + `TxDetailView` |
 | `SettingsView.swift` | Нода, seed, Face ID, о приложении |
@@ -39,8 +39,10 @@ UI никогда не обращается к блокчейну напряму
 ### Сервисный слой — `GrinFlint/Services/`
 
 **`WalletService` (protocol)** — контракт блокчейн-слоя:
-`refresh()`, `prepareSend(amount:message:feeTier:)`, `receive(slatepack:message:)`,
+`refresh()`, `prepareSend(destination:amount:feeTier:)`, `receive(slatepack:)`,
 `exportSlatepack(txID:)`, плюс свойства `balance`, `transactions`, `slatepackAddress`.
+Текста сообщения в контракте нет: slatepack grin-wallet 5.5.1 его не несёт
+(см. AGENTS.md, «Известные ограничения FFI»).
 
 **`MockWalletService`** — демо: память, блокировка/разблокировка средств,
 симуляция подтверждения на refresh.

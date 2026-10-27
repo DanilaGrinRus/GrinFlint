@@ -34,7 +34,7 @@ pub extern "C" fn grin_wallet_recover(mnemonic: *const c_char, password: *const 
 #[no_mangle]
 pub extern "C" fn grin_wallet_balance(handle: *mut WalletHandle) -> *const c_char; // JSON
 #[no_mangle]
-pub extern "C" fn grin_tx_create(handle: *mut WalletHandle, amount: u64, message: *const c_char) -> *const c_char; // slatepack
+pub extern "C" fn grin_tx_create(handle: *mut WalletHandle, amount: u64, dest: *const c_char) -> *const c_char; // slatepack
 #[no_mangle]
 pub extern "C" fn grin_tx_finalize(handle: *mut WalletHandle, slatepack: *const c_char) -> i32;
 #[no_mangle]
@@ -74,13 +74,13 @@ actor GrinWalletFFIService: WalletService {
         guard handle != nil else { throw WalletError.notImplemented("init failed") }
     }
 
-    func prepareSend(amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
-        // 1) grin_tx_create(amount_in_nanogrin, message) -> slatepack
+    func prepareSend(amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+        // 1) grin_tx_create(amount_in_nanogrin, dest) -> slatepack
         // 2) обновить локальный кэш баланса (locked)
         // Никогда не вызывать FFI из главного потока — actor это гарантирует.
     }
 
-    func receive(slatepack: String, message: String) async throws -> TransactionRecord {
+    func receive(slatepack: String) async throws -> TransactionRecord {
         // grin_tx_receive(slatepack) -> ответный slatepack + зачисление
     }
 
