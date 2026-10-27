@@ -100,6 +100,7 @@ enum WalletError: LocalizedError {
     case invalidAmount
     case invalidSlatepack
     case invalidAddress
+    case invalidMnemonic
     case notImplemented(String)
 
     var errorDescription: String? {
@@ -112,6 +113,8 @@ enum WalletError: LocalizedError {
             return "Недействительный Slatepack: сообщение должно начинаться с «grinslate1…»."
         case .invalidAddress:
             return "Укажите Slatepack-адрес получателя (grin1…)."
+        case .invalidMnemonic:
+            return "Seed-фраза должна содержать 12 или 24 слова, разделённые пробелами."
         case .notImplemented(let what):
             return "Не реализовано в демо-режиме: \(what)."
         }

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Корневой экран с табами, как в Flint Wallet.
+/// Корневой экран: онбординг, затем табы, как в Flint Wallet.
 struct ContentView: View {
-    @State private var viewModel = WalletViewModel()
+    @State private var appState = AppState()
 
     init() {
         let appearance = UITabBarAppearance()
@@ -13,6 +13,18 @@ struct ContentView: View {
     }
 
     var body: some View {
+        Group {
+            if let viewModel = appState.viewModel {
+                tabView
+                    .environment(viewModel)
+            } else {
+                OnboardingView(appState: appState)
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private var tabView: some View {
         TabView {
             PortfolioView()
                 .tabItem {
@@ -28,7 +40,5 @@ struct ContentView: View {
                 }
         }
         .tint(Theme.accent)
-        .environment(viewModel)
-        .preferredColorScheme(.dark)
     }
 }

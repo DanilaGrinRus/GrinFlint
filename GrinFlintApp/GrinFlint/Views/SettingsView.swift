@@ -4,7 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(WalletViewModel.self) private var viewModel
 
-    @State private var nodeURL = "https://grinnode.live:3413"
+    @AppStorage("nodeURL") private var nodeURL = WalletFactory.defaultNodeURL
     @State private var showSeed = false
 
     /// Демо-сид-фраза (НЕ используйте реальные средства с ней).
@@ -45,7 +45,7 @@ struct SettingsView: View {
                         .tint(Theme.accent)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
-                    Label("В демо-режиме подключение не используется", systemImage: "info.circle")
+                    Label(viewModel.isDemoMode ? "В демо-режиме подключение не используется" : "Применится при следующем запуске приложения", systemImage: "info.circle")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textTertiary)
                 }

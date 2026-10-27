@@ -17,6 +17,16 @@ protocol WalletService: AnyObject {
     var transactions: [TransactionRecord] { get }
     var slatepackAddress: String { get }
 
+    /// Открыть существующий кошелёк (после создания/восстановления или при
+    /// старте приложения). Реализация может закэшировать slatepack-адрес.
+    func open() async throws
+
+    /// Создать новый кошелёк и вернуть seed-фразу (24 слова).
+    func createWallet(mnemonicLength: Int) async throws -> String
+
+    /// Восстановить кошелёк из seed-фразы.
+    func restore(mnemonic: String) async throws
+
     /// Обновить состояние с ноды. В демо: «добывается блок» и
     /// неподтверждённые транзакции становятся подтверждёнными.
     func refresh() async throws
@@ -44,6 +54,15 @@ final class MockWalletService: WalletService {
 
     let slatepackAddress = "grin1q5kv3zyx7w8xjf0v2t4h9d6c3b1n5p7m9k2l4r6s8u0e2q4w6y8i0o2p4a6s8d"
 
+    /// Слова для демо-генерации seed (не настоящая мнемоника Grin —
+    /// настоящая появляется в GRINFFI-режиме из grin_wallet_create_seed).
+    private static let demoWords = [
+        "apple", "river", "stone", "cloud", "meadow", "bridge", "copper",
+        "forest", "harbor", "ladder", "planet", "silver", "window", "grape",
+        "anchor", "cactus", "ember", "frost", "market", "oak", "sunset",
+        "velvet", "letter", "dream", "bonus", "wiggle"
+    ]
+
     init() {
         let now = Date()
         transactions = [
@@ -69,6 +88,25 @@ final class MockWalletService: WalletService {
                 createdAt: now.addingTimeInterval(-3600 * 96)
             ),
         ]
+    }
+
+    func open() async throws {
+        // Демо: нечего открывать.
+    }
+
+    func createWallet(mnemonicLength: Int) async throws -> String {
+        try await Task.sleep(nanoseconds: 400_000_000)
+        return (0..<max(mnemonicLength, 12)).map { _ in
+            Self.demoWords.randomElement() ?? "word"
+        }.joined(separator: " ")
+    }
+
+    func restore(mnemonic: String) async throws {
+        let words = mnemonic.split(whereSeparator: { $0 == " " || $0 == "\n" })
+        guard words.count == 12 || words.count == 24 else {
+            throw WalletError.invalidMnemonic
+        }
+        try await Task.sleep(nanoseconds: 400_000_000)
     }
 
     func refresh() async throws {

@@ -33,7 +33,7 @@ actor GrinWalletFFIService: WalletService {
 
     /// Создать новый seed; возвращает мнемонику.
     @discardableResult
-    func createWallet(mnemonicLength: Int = 24) throws -> String {
+    func createWallet(mnemonicLength: Int = 24) async throws -> String {
         let result: GrinMnemonicResult = try GrinFFI.call({ h in
             grin_wallet_create_seed(h.raw, password, UInt32(mnemonicLength), nil)
         }, handle: handle, as: GrinMnemonicResult.self)
@@ -41,9 +41,13 @@ actor GrinWalletFFIService: WalletService {
     }
 
     /// Восстановить из seed-фразы.
-    func recover(mnemonic: String) throws {
+    func restore(mnemonic: String) async throws {
+        let words = mnemonic.split(whereSeparator: { $0 == " " || $0 == "\n" })
+        guard words.count == 12 || words.count == 24 else {
+            throw WalletError.invalidMnemonic
+        }
         let _: GrinMnemonicResult = try GrinFFI.call({ h in
-            grin_wallet_create_seed(h.raw, password, 24, mnemonic)
+            grin_wallet_create_seed(h.raw, password, UInt32(words.count), mnemonic)
         }, handle: handle, as: GrinMnemonicResult.self)
     }
 
