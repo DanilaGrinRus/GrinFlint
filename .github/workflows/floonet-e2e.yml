@@ -2,8 +2,9 @@ name: Floonet E2E
 
 # Полный roundtrip tGRIN: funded seed (секрет TEST_WALLET_SEED) → send →
 # receive → finalize → post против собственной floonet-ноды в раннере.
-# Не запускается на каждый пуш: только вручную и раз в неделю —
-# синхронизация ноды дорогая.
+# Цепь берётся из кеша (синкает floonet-chain-cache.yml, воскресенье +
+# вручную); свой fallback-синк — до 100 минут.
+# Не запускается на каждый пуш: только вручную и раз в неделю.
 
 on:
   workflow_dispatch:
@@ -45,11 +46,12 @@ jobs:
         id: week
         run: echo "w=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
 
-      - name: Кеш floonet chain data
-        uses: actions/cache@v4
+      - name: Восстановить кеш floonet chain data
+        uses: actions/cache/restore@v4
         with:
           path: ~/.grin/floonet
           key: floonet-chain-${{ steps.week.outputs.w }}
+          fail-on-cache-miss: false
 
       - name: Запуск floonet-ноды
         run: |

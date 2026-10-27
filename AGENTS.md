@@ -71,7 +71,8 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 | `ffi/grin-wallet-ffi/tests/e2e_floonet.rs` | Полный roundtrip tGRIN против живой ноды (env-gated) |
 | `ffi/patches/` + `ffi/grin-wallet-ffi/.github`-патч-шаг | Патчи sysinfo и grin_wallet_impls для iOS-кросс-компиляции |
 | `.github/workflows/ios.yml` | Сборка: cargo check → XCFramework (rust-ios) → приложение → смоук |
-| `.github/workflows/floonet-e2e.yml` | E2E: своя floonet-нода в раннере + roundtrip 50 tGRIN (dispatch + cron пн 04:17 UTC) |
+| `.github/workflows/floonet-e2e.yml` | E2E: своя floonet-нода в раннере + roundtrip 50 tGRIN (dispatch + cron пн 04:17 UTC); цепь — только restore, сохраняет «прогрев» |
+| `.github/workflows/floonet-chain-cache.yml` | Прогрев кеша цепи: синк ноды до 280 мин + save частичного прогресса всегда (`if: always()`); воскресенье 20:27 UTC + вручную |
 | `docs/ios/` | README, architecture, grin-wallet-integration, roadmap |
 | `ffi/include/grin_wallet_ffi.h` | C-заголовок для Swift (bridging header уже настроен) |
 
@@ -127,8 +128,11 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 - **FFI-изменение**: то же + смоук-тест в CI. Локально: cargo из %TEMP%
   (см. «Ловушки»), `cargo test --test roundtrip`.
 - **Запустить E2E в CI**: `gh workflow run floonet-e2e.yml` (dispatch) или
-  ждать cron (пн 04:17 UTC). Первичный синк ноды ~до 100 мин; кеш цепи
-  `~/.grin/floonet` хранится по неделям (ключ `floonet-chain-<год-W<номер>`).
+  ждать cron (пн 04:17 UTC). Первичный синк ноды с нуля — долго (было >100
+  мин), поэтому цепь кеширует отдельный workflow `floonet-chain-cache.yml`
+  (вс 20:27 UTC + вручную; save даже частичного прогресса, ключ
+  `floonet-chain-<год-W<номер>`; повторный запуск продолжает с частичного
+  кеша). С тёплым кешем E2E доезжает за минуты.
 - **Локальный прогон E2E**: скрипт-образец `C:\DHW\.tmp\grinsend\run-e2e.ps1`
   (env-переменные, seed из файла, cargo из %TEMP%).
 

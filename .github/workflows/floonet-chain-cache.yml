@@ -1,0 +1,85 @@
+name: Floonet Chain Cache
+
+# Прогрев кеша цепи floonet: синхронизирует ноду и сохраняет ~/.grin/floonet
+# в кеш GitHub Actions — ДАЖЕ если синк не завершился (частичные данные).
+# Следующая попытка восстановит частичный кеш и продолжит с того же места.
+# E2E-прогоны (floonet-e2e.yml) стартуют с тёплым кешем и доезжают за минуты.
+# Расписание: воскресенье 20:27 UTC — за ночь до понедельничего E2E (04:17 UTC).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '27 20 * * 0'
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  warm:
+    name: Синхронизация ноды и кеш цепи
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Скачать grin node v5.5.2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v5.5.2 --repo mimblewimble/grin \
+            --pattern 'grin-v5.5.2-linux-x86_64.tar.gz'
+          tar xzf grin-v5.5.2-linux-x86_64.tar.gz
+          GRIN_BIN="$(find . -maxdepth 2 -name grin -type f | head -1)"
+          chmod +x "$GRIN_BIN"
+          echo "GRIN_BIN=$GRIN_BIN" >> "$GITHUB_ENV"
+
+      - name: Номер недели (ключ кеша)
+        id: week
+        run: echo "w=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Восстановить кеш цепи (частичный с прошлой попытки)
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.grin/floonet
+          key: floonet-chain-${{ steps.week.outputs.w }}
+          fail-on-cache-miss: false
+
+      - name: Запуск floonet-ноды
+        run: |
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
+
+      - name: Синхронизация (до 280 минут)
+        timeout-minutes: 330
+        run: |
+          SECRET_FILE="$HOME/.grin/floonet/.api_secret"
+          for i in $(seq 1 840); do
+            sleep 20
+            [ -f "$SECRET_FILE" ] || continue
+            SECRET=$(cat "$SECRET_FILE")
+            S=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:3413/v2/owner \
+              -H 'Content-Type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' \
+              | jq -r '.result.Ok.sync_status // empty')
+            echo "poll $i: $S"
+            [ "$S" = "no_sync" ] && exit 0
+          done
+          echo "синк не завершился за 280 минут — сохраняем частичный прогресс"
+          exit 1
+
+      - name: Удалить прошлый кеш этой недели (ключ кеша иммутабелен)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh cache delete "floonet-chain-${{ steps.week.outputs.w }}" \
+            --repo "$GITHUB_REPOSITORY" || true
+
+      - name: Сохранить кеш цепи (всегда — частичный тоже полезен)
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.grin/floonet
+          key: floonet-chain-${{ steps.week.outputs.w }}
