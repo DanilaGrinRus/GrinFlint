@@ -13,6 +13,7 @@
 //!                             новым и фраза сохраняется в GRIN_E2E_SEED_B_OUT
 //!   GRIN_E2E_SEED_B_OUT     — файл для записи фразы нового кошелька B
 //!   GRIN_E2E_CONFIRM_ROUNDS — лимит опроса подтверждения (default 24 × 20 c)
+//!   GRIN_E2E_AMOUNT_NGRIN   — сумма перевода в наногрин (default 1 tGRIN)
 //!
 //! ВНИМАНИЕ: seed-фразы читаются только из env и никогда не печатаются
 //! (в т.ч. в сообщениях assert'ов) — правило «seed не попадает в логи».
@@ -84,7 +85,17 @@ fn floonet_roundtrip_send_receive() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(24);
-    const AMOUNT: u64 = 50_000_000_000; // 50 tGRIN
+    // Сумма перевода. Комиссия платится сверху, поэтому сумма обязана быть
+    // меньше баланса A: при сумме, равной балансу, send падает
+    // «Insufficient funds» (Required = сумма + комиссия). По умолчанию 1 tGRIN —
+    // одного пополнения на 50 tGRIN хватает примерно на 49 прогонов.
+    const AMOUNT_DEFAULT: u64 = 1_000_000_000; // 1 tGRIN
+    // Запас на комиссию за 1 вход / 2 выхода: 0.0125 tGRIN.
+    const FEE_HEADROOM: u64 = 12_500_000;
+    let amount: u64 = std::env::var("GRIN_E2E_AMOUNT_NGRIN")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(AMOUNT_DEFAULT);
     const PASSWORD: &str = "e2e-test-password";
 
     // A — funded-кошелёк (восстановление из env-фразы)
@@ -162,15 +173,16 @@ fn floonet_roundtrip_send_receive() {
     };
     let spendable_a = bal(&bal_a, "spendable");
     assert!(
-        spendable_a >= AMOUNT,
-        "недостаточно средств на A: spendable {spendable_a} < {AMOUNT}"
+        spendable_a >= amount + FEE_HEADROOM,
+        "недостаточно средств на A: spendable {spendable_a}, нужно {amount} + комиссия {FEE_HEADROOM}"
     );
 
     // 2) A: send → slatepack
+    eprintln!("перевод {amount} наногрин (комиссия сверху)");
     let sent = unsafe {
         take_string(grin_wallet_send(
             h_a,
-            AMOUNT,
+            amount,
             cs(&address_b).as_ptr(),
             cs("grinflint e2e transfer").as_ptr(),
         ))
@@ -206,7 +218,7 @@ fn floonet_roundtrip_send_receive() {
                 .unwrap_or_else(|| panic!("balance (b, раунд {i}) вернул NULL: {}", last_error()))
         };
         let spendable = bal(&bal_b, "spendable");
-        if spendable >= AMOUNT {
+        if spendable >= amount {
             eprintln!("подтверждено за {i} раунд(ов): B spendable = {spendable}");
             confirmed = true;
             break;

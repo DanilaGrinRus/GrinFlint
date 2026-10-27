@@ -97,12 +97,15 @@ jobs:
           done
           echo "нода не синхронизировалась за 40 минут"; tail -40 grin-node.log; exit 1
 
-      - name: E2E roundtrip (50 tGRIN)
+      - name: E2E roundtrip (1 tGRIN)
         working-directory: ffi/grin-wallet-ffi
         env:
           GRIN_E2E_NODE_URL: http://127.0.0.1:13413
           GRIN_E2E_SEED_FUNDED: ${{ secrets.TEST_WALLET_SEED }}
           GRIN_E2E_CONFIRM_ROUNDS: "30"
+          # Сумма перевода; комиссия (~0.0125 tGRIN) платится сверху, поэтому
+          # сумма меньше баланса A. 50 tGRIN хватает примерно на 49 прогонов.
+          GRIN_E2E_AMOUNT_NGRIN: "1000000000"
         run: |
           export GRIN_E2E_API_SECRET="$(cat "$HOME/.grin/test/.api_secret")"
           cargo test --test e2e_floonet -- --nocapture

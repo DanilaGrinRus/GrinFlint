@@ -26,8 +26,10 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
   для iOS (device+sim) в CI.
 - Swift-обёртка `GrinWalletFFIService` компилируется в CI (флаг `GRINFFI`).
 - Смоук-тест lifecycle (оффлайн) — зелёный.
-- **E2E roundtrip 50 tGRIN против живой floonet-ноды** — проверен вживую
-  локально (2026-10-27) и вынесен в CI (`floonet-e2e.yml`).
+- **E2E roundtrip tGRIN против живой floonet-ноды** — проверен вживую
+  локально (2026-10-27, 50 tGRIN) и вынесен в CI (`floonet-e2e.yml`);
+  сумма в CI по умолчанию 1 tGRIN (`GRIN_E2E_AMOUNT_NGRIN`), иначе
+  комиссия не покрывается из остатка баланса.
 - Face ID/Touch ID на вход и подпись + автоблокировка — код написан, сборка
   зелёная; на устройстве не проверялось (симулятора нет).
 - Тема Flint (мята/графит) применена к UI-демо (веб-рендер экранов).
@@ -42,7 +44,7 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 | Кеш цепи | ключ `testnet-chain-<год-W<номер>`; греет `floonet-chain-cache.yml` (вс 20:27 UTC), E2E только restore |
 | E2E | `floonet-e2e.yml` (dispatch + cron пн 04:17 UTC) |
 | Секреты ноды | `.api_secret` и `.foreign_api_secret` у кошелька должны **совпадать** (workflow уравнивает их при старте; иначе restore/refresh кошелька получает 401 и пустой баланс) |
-| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс 50 tGRIN, каждый зелёный E2E его тратит → нужно пополнение |
+| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс 50 tGRIN, прогон тратит сумму перевода + комиссию (~1.0125 tGRIN при дефолте) → хватает примерно на 49 прогонов |
 
 ## Локальная нода пользователя (для ручных прогонов)
 
