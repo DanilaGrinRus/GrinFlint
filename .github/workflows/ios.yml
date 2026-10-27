@@ -100,6 +100,9 @@ jobs:
       - name: Сборка (с реальным FFI)
         run: |
           XCF=ffi-artifact/GrinWalletFFI.xcframework
+          # download-artifact может отдавать либо саму папку xcframework,
+          # либо её содержимое — поддерживаем оба варианта.
+          [ -d "$XCF" ] || XCF=ffi-artifact
           SIM_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' -path '*sim*' | head -1)
           HEADERS=$(find "$XCF" -type d -name Headers | head -1)
           test -n "$SIM_LIB" && test -n "$HEADERS"
