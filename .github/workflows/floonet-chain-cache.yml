@@ -43,10 +43,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="testnet-chain-2026-10-27"
+          TAG="floonet-chain-2026-10-27"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "снапшот $TAG найден — скачиваем"
-            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'testnet-chain-part-*'
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'floonet-chain-part-*'
             mkdir -p "$HOME/.grin/test"
             cat testnet-chain-part-* | tar -xJ -C "$HOME/.grin/test"
             echo "found=true" >> "$GITHUB_OUTPUT"
