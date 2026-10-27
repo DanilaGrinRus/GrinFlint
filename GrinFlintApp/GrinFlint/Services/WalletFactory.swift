@@ -46,9 +46,13 @@ enum WalletFactory {
         #if GRINFFI
         do {
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let dataDir = documents.appendingPathComponent("grin-wallet", isDirectory: true)
+            // grin-wallet пишет grin-wallet.toml в data_dir при создании
+            // контекста; на первом запуске каталога ещё нет.
+            try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
             let password = try KeychainStore.loadOrCreatePassword()
             let service = try GrinWalletFFIService(
-                dataDir: documents.appendingPathComponent("grin-wallet", isDirectory: true).path,
+                dataDir: dataDir.path,
                 nodeURL: Self.nodeURL,
                 chain: network == .mainnet ? .mainnet : .floonet,
                 password: password

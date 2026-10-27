@@ -4,7 +4,11 @@ import SwiftUI
 struct GrinFlintApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if SimSmoke.isRequested {
+                SimSmokeView()
+            } else {
+                ContentView()
+            }
         }
     }
 }
