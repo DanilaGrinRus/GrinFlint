@@ -84,8 +84,13 @@ jobs:
           # Быстрый старт, чтобы сгенерировались конфиг и секреты
           nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node-boot.log 2>&1 &
           for i in $(seq 1 30); do sleep 2; [ -f "$HOME/.grin/test/.api_secret" ] && break; done
-          pkill -f "grin" || true
-          sleep 3
+          pkill -9 -f "$GRIN_BIN" || true
+          for w in $(seq 1 45); do
+            pgrep -f "$GRIN_BIN" >/dev/null || break
+            sleep 1
+          done
+          pgrep -f "$GRIN_BIN" >/dev/null && { echo "boot-нода не остановилась за 45с"; exit 1; }
+          sleep 2
           # Кошелёк ходит на foreign API с owner-секретом: уравниваем секреты,
           # иначе foreign API отвечает 401 и restore/refresh возвращает пусто.
           TOML="$HOME/.grin/test/grin-server.toml"
