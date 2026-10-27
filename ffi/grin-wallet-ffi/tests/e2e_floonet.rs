@@ -3,6 +3,8 @@
 //! Сценарий (соответствует критерию выхода Фазы 1 роадмапа):
 //!   A (funded) → send → slatepack → B.receive → response → A.finalize+post
 //!   → ждём подтверждения → у B spendable > 0.
+//!   Если задан GRIN_E2E_RETURN_TO_A=1, дальше тот же путь в обратную
+//!   сторону (B → A), чтобы деньги не оседали на одноразовом кошельке B.
 //!
 //! Запускается только когда заданы env-переменные (в обычном CI смоук-прогоне
 //! тест компилируется, но пропускается):
@@ -14,6 +16,7 @@
 //!   GRIN_E2E_SEED_B_OUT     — файл для записи фразы нового кошелька B
 //!   GRIN_E2E_CONFIRM_ROUNDS — лимит опроса подтверждения (default 24 × 20 c)
 //!   GRIN_E2E_AMOUNT_NGRIN   — сумма перевода в наногрин (default 1 tGRIN)
+//!   GRIN_E2E_RETURN_TO_A    — "1" включает обратный перевод B → A
 //!
 //! ВНИМАНИЕ: seed-фразы читаются только из env и никогда не печатаются
 //! (в т.ч. в сообщениях assert'ов) — правило «seed не попадает в логи».
@@ -67,6 +70,24 @@ fn bal(json: &str, name: &str) -> u64 {
         .unwrap_or_else(|| panic!("поле {name} не u64"))
 }
 
+/// Есть ли в списке транзакций подтверждённый входящий перевод ровно на `amount`.
+fn has_confirmed_received(json: &str, amount: u64) -> bool {
+    let v: serde_json::Value = serde_json::from_str(json).unwrap();
+    v["txs"]
+        .as_array()
+        .map(|txs| {
+            txs.iter().any(|t| {
+                t["type"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("Received")
+                    && t["confirmed"].as_bool().unwrap_or(false)
+                    && t["amount"].as_u64().unwrap_or(0) == amount
+            })
+        })
+        .unwrap_or(false)
+}
+
 #[test]
 fn floonet_roundtrip_send_receive() {
     let seed_funded = match std::env::var("GRIN_E2E_SEED_FUNDED") {
@@ -81,6 +102,11 @@ fn floonet_roundtrip_send_receive() {
     let api_secret = std::env::var("GRIN_E2E_API_SECRET").ok().filter(|s| !s.is_empty());
     let seed_b = std::env::var("GRIN_E2E_SEED_B").ok().filter(|s| !s.is_empty());
     let seed_b_out = std::env::var("GRIN_E2E_SEED_B_OUT").ok().filter(|s| !s.is_empty());
+    // Обратный перевод B → A: по умолчанию выключен, в CI включён, чтобы
+    // деньги возвращались на funded-кошелёк, а не сгорали на одноразовом B.
+    let return_to_a = std::env::var("GRIN_E2E_RETURN_TO_A")
+        .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
     let rounds: u32 = std::env::var("GRIN_E2E_CONFIRM_ROUNDS")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -103,7 +129,7 @@ fn floonet_roundtrip_send_receive() {
     let node = cs(&node_url);
     let chain = cs("floonet");
     let secret_a = api_secret.as_deref().map(cs);
-    let h_a = unsafe {
+    let (h_a, address_a) = unsafe {
         let h = grin_wallet_create(
             cs(&dir_a).as_ptr(),
             node.as_ptr(),
@@ -124,8 +150,7 @@ fn floonet_roundtrip_send_receive() {
         drop(j);
         let open = take_string(grin_wallet_open(h, cs(PASSWORD).as_ptr()))
             .unwrap_or_else(|| panic!("open (a) вернул NULL: {}", last_error()));
-        drop(open);
-        h
+        (h, field(&open, "address"))
     };
 
     // B — либо восстановленный, либо новый (фраза сохраняется в seed_b_out)
@@ -180,13 +205,8 @@ fn floonet_roundtrip_send_receive() {
     // 2) A: send → slatepack
     eprintln!("перевод {amount} наногрин (комиссия сверху)");
     let sent = unsafe {
-        take_string(grin_wallet_send(
-            h_a,
-            amount,
-            cs(&address_b).as_ptr(),
-            cs("grinflint e2e transfer").as_ptr(),
-        ))
-        .unwrap_or_else(|| panic!("send вернул NULL: {}", last_error()))
+        take_string(grin_wallet_send(h_a, amount, cs(&address_b).as_ptr()))
+            .unwrap_or_else(|| panic!("send вернул NULL: {}", last_error()))
     };
     let slatepack = field(&sent, "slatepack");
     assert!(
@@ -228,6 +248,48 @@ fn floonet_roundtrip_send_receive() {
         }
     }
     assert!(confirmed, "транзакция не подтвердилась за {rounds} раундов");
+
+    // 6) Обратный перевод B → A: те же шаги в другую сторону.
+    //    Возвращаем сумму за вычетом двух комиссий (своя + запас), иначе на B
+    //    не останется средств на комиссию: она платится сверху.
+    if return_to_a {
+        let return_amount = amount.saturating_sub(2 * FEE_HEADROOM);
+        assert!(return_amount > 0, "сумма возврата должна быть больше нуля");
+        eprintln!("возврат B→A: {return_amount} наногрин (комиссия сверху)");
+
+        let sent_back = unsafe {
+            take_string(grin_wallet_send(h_b, return_amount, cs(&address_a).as_ptr()))
+                .unwrap_or_else(|| panic!("send B→A вернул NULL: {}", last_error()))
+        };
+        let back_slatepack = field(&sent_back, "slatepack");
+
+        let received_back = unsafe {
+            take_string(grin_wallet_receive(h_a, cs(&back_slatepack).as_ptr()))
+                .unwrap_or_else(|| panic!("receive (a, возврат) вернул NULL: {}", last_error()))
+        };
+        let back_response = field(&received_back, "slatepack");
+
+        let rc_back = grin_wallet_finalize(h_b, cs(&back_response).as_ptr());
+        assert_eq!(rc_back, 0, "finalize B→A: {}", unsafe { last_error() });
+
+        let mut returned = false;
+        for i in 1..=rounds {
+            std::thread::sleep(std::time::Duration::from_secs(20));
+            let txs = unsafe {
+                take_string(grin_wallet_txs(h_a))
+                    .unwrap_or_else(|| panic!("txs (a, раунд {i}) вернул NULL: {}", last_error()))
+            };
+            if has_confirmed_received(&txs, return_amount) {
+                eprintln!("возврат подтверждён за {i} раунд(ов): A получил {return_amount}");
+                returned = true;
+                break;
+            }
+            if i % 3 == 0 {
+                eprintln!("раунд {i}: возврат B→A ещё не подтверждён");
+            }
+        }
+        assert!(returned, "возврат B→A не подтвердился за {rounds} раундов");
+    }
 
     unsafe {
         grin_wallet_destroy(h_a);

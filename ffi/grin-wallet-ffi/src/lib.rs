@@ -338,17 +338,19 @@ pub extern "C" fn grin_wallet_txs(handle: *mut GrinWallet) -> *mut c_char {
 
 /// Создать исходящую транзакцию; возвращает {"slatepack","slate_id","fee"}.
 /// amount в наногринах, dest — slatepack-адрес получателя (grin1...).
+///
+/// Текста сообщения здесь нет намеренно: в grin-wallet 5.5.1 у slatepack нет
+/// поля сообщения (из API оно удалено), и прежний параметр `message` молча
+/// терялся. Текст, если он нужен, передаётся отдельным каналом.
 #[no_mangle]
 pub extern "C" fn grin_wallet_send(
     handle: *mut GrinWallet,
     amount_nanogrin: u64,
     dest: *const c_char,
-    message: *const c_char,
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
         let dest = c_str(dest).ok_or("dest is null")?;
-        let message = c_str(message).unwrap_or_default();
         SlatepackAddress::try_from(dest.as_str()).map_err(|e| format!("bad dest: {e}"))?;
 
         let args = InitTxArgs {
@@ -385,7 +387,6 @@ pub extern "C" fn grin_wallet_send(
             .owner
             .create_slatepack_message(w.mask.as_ref(), &slate, None, vec![recipient])
             .map_err(|e| format!("create_slatepack_message: {e}"))?;
-        let _ = message; // сообщение уходит в slatepack ниже по мере возможности
         Ok(json!({
             "slatepack": slatepack,
             "slate_id": slate.id.to_string(),

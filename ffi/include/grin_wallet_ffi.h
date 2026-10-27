@@ -48,11 +48,11 @@ char *grin_wallet_balance(GrinWallet *handle, int32_t refresh);
 char *grin_wallet_txs(GrinWallet *handle);
 
 /* Создать исходящую транзакцию. amount в наногринах, dest — grin1...
- * Возвращает {"slatepack","slate_id","fee"}. */
+ * Возвращает {"slatepack","slate_id","fee"}.
+ * Текста сообщения нет: slatepack grin-wallet 5.5.1 его не переносит. */
 char *grin_wallet_send(GrinWallet *handle,
                        uint64_t amount_nanogrin,
-                       const char *dest,
-                       const char *message);
+                       const char *dest);
 
 /* Принять slatepack отправителя. Возвращает {"slatepack": <ответ>}. */
 char *grin_wallet_receive(GrinWallet *handle, const char *slatepack);

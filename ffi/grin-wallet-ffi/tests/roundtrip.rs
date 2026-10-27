@@ -91,12 +91,7 @@ fn wallet_lifecycle_offline() {
 
         // 4) send без средств и с мёртвой нодой обязан упасть,
         //    но с понятной (непустой) ошибкой — это и есть проверка plumbing.
-        let sent = grin_wallet_send(
-            h,
-            1_000_000_000,
-            cs(&address).as_ptr(),
-            cs("smoke").as_ptr(),
-        );
+        let sent = grin_wallet_send(h, 1_000_000_000, cs(&address).as_ptr());
         assert!(sent.is_null(), "send не должен проходить в оффлайн-пустом кошельке");
         let err = last_error();
         assert!(!err.is_empty(), "ошибка send не должна быть пустой");
@@ -129,6 +124,82 @@ fn wallet_lifecycle_offline() {
             "адрес после восстановления должен совпадать с исходным"
         );
         grin_wallet_destroy(h2);
+
+        let _ = std::fs::remove_dir_all(&dir_a);
+        let _ = std::fs::remove_dir_all(&dir_b);
+    }
+}
+
+/// Восстановление кошелька из фразы в 12 слов (128 бит энтропии).
+///
+/// Снаружи FFI принимает число СЛОВ, внутри grin-wallet ждёт БАЙТЫ энтропии
+/// (12 слов = 16 байт). Тест закрепляет и маппинг длины, и то, что из
+/// 12-словной фразы восстанавливается тот же кошелёк (тот же slatepack-адрес).
+#[test]
+fn restore_from_12_words() {
+    unsafe {
+        let node = "http://127.0.0.1:1";
+
+        // A: новый кошелёк на 12 слов
+        let dir_a = unique_dir("w12a");
+        let h_a = grin_wallet_create(
+            cs(&dir_a).as_ptr(),
+            cs(node).as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h_a.is_null(), "grin_wallet_create (12 слов, a): {}", last_error());
+
+        let seed_json = take_string(grin_wallet_create_seed(
+            h_a,
+            cs("pass").as_ptr(),
+            12,
+            ptr::null(),
+        ))
+        .expect("create_seed (12 слов) вернул NULL");
+        let mnemonic = field(&seed_json, "mnemonic");
+        assert_eq!(
+            mnemonic.split_whitespace().count(),
+            12,
+            "ожидалось 12 слов: {mnemonic}"
+        );
+
+        let open_json =
+            take_string(grin_wallet_open(h_a, cs("pass").as_ptr())).expect("open (12 слов, a)");
+        let address = field(&open_json, "address");
+        grin_wallet_destroy(h_a);
+
+        // B: восстановление из тех же 12 слов → тот же адрес
+        let dir_b = unique_dir("w12b");
+        let h_b = grin_wallet_create(
+            cs(&dir_b).as_ptr(),
+            cs(node).as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h_b.is_null(), "grin_wallet_create (12 слов, b): {}", last_error());
+
+        let rec_json = take_string(grin_wallet_create_seed(
+            h_b,
+            cs("pass").as_ptr(),
+            12,
+            cs(&mnemonic).as_ptr(),
+        ))
+        .expect("create_seed (восстановление из 12 слов) вернул NULL");
+        assert_eq!(
+            field(&rec_json, "mnemonic"),
+            mnemonic,
+            "фраза после восстановления отличается от исходной"
+        );
+
+        let open2 = take_string(grin_wallet_open(h_b, cs("pass").as_ptr()))
+            .expect("open (12 слов, b) вернул NULL");
+        assert_eq!(
+            address,
+            field(&open2, "address"),
+            "адрес из 12-словной фразы не совпал с исходным"
+        );
+        grin_wallet_destroy(h_b);
 
         let _ = std::fs::remove_dir_all(&dir_a);
         let _ = std::fs::remove_dir_all(&dir_b);
