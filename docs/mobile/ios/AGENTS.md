@@ -1,6 +1,6 @@
 # AGENTS.md — GrinFlint (iOS-кошелёк Grin)
 
-Рабочий корень: **`C:\DHW\IosProject`** (git-репозиторий, ветка `main`,
+Рабочий корень: **`C:\DHW\mobile\GrinFlint`** (git-репозиторий, ветка `main`,
 origin `github.com/DanilaGrinRus/GrinFlint`, **публичный**). Проект также
 называют «IosFlint» — это одно и то же; при переименовании папки ничего
 не ломается (все пути внутри репозитория относительные).
@@ -23,7 +23,7 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 1. **Seed, пароли, API-секреты не попадают в код, коммиты, логи и сообщения
    об ошибках.** В репозитории-публичном это критично. Единственный
    допустимый канал — GitHub Secrets (см. «Тестовые активы»).
-2. **Старый testnet-seed** (файл `C:\DHW\Docs\testnet-funded.txt`,
+2. **Старый testnet-seed** (файл `C:\DHW\docs\testnet-funded.txt`,
    используется в другом проекте пользователя) — **не использовать и не
    копировать никуда**. С него списано 50 tGRIN на CI-кошелёк, дальше он
    чужой. Формат файла: фраза лежит в 6-й строке с префиксом `seed=`.
@@ -46,7 +46,7 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
   (Flint) + `C:\DHW\.cargo\config.toml` (vendor + offline) ломают сборку
   нашего крейта, если запускать cargo из-под дерева `C:\DHW`.
   Решение: запускать cargo с CWD **вне** `C:\DHW`, например
-  `cd %TEMP% && cargo test --manifest-path C:\DHW\IosProject\ffi\grin-wallet-ffi\Cargo.toml ...`.
+  `cd %TEMP% && cargo test --manifest-path C:\DHW\mobile\GrinFlint\ffi\grin-wallet-ffi\Cargo.toml ...`.
   Крейт уже отсоединён пустой таблицей `[workspace]` в своём Cargo.toml.
 - **MSVC требует короткий TMP.** Перед cargo build локально:
   `TMP=C:\DHW\.tmp TEMP=C:\DHW\.tmp` (иначе cc-rs падает на zstd-sys
@@ -128,7 +128,7 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   и шлёт с него. **Каждый зелёный прогон тратит эти 50** (перевод на
   свежий кошелёк B без обратной ноги) — после успеха кошелёк нужно
   пополнить заново. Полные реквизиты (seed + пароль `e2e-test-password`):
-  `C:\DHW\Docs\grinflint-ci-wallet.txt` — доверять ему; рабочая копия
+  `C:\DHW\docs\grinflint-ci-wallet.txt` — доверять ему; рабочая копия
   `C:\DHW\.tmp\grinsend\ci-seed.txt` могла устареть.
 - Проверка баланса кошелька против живой ноды: тест
   `ffi/grin-wallet-ffi/tests/check_funded_balance.rs` (env-gated:
@@ -191,7 +191,7 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 3. **Прогрев кеша ЗЕЛЁНЫЙ** (run 40565586922): снапшот скачан, нода
    догнала, кеш `testnet-chain-2026-W44` сохранён. E2E стартует тёплым.
 4. **Секрет TEST_WALLET_SEED обновлён** = фраза из
-   `C:\DHW\Docs\grinflint-ci-wallet.txt` (кошелёк с 50 tGRIN, баланс
+   `C:\DHW\docs\grinflint-ci-wallet.txt` (кошелёк с 50 tGRIN, баланс
    проверен вживую 2026-10-28; см. раздел «Тестовые активы»).
 5. **Уравнивание owner/foreign API-секретов ноды** при старте: иначе
    кошелёк получает 401 на foreign API и возвращает пустой баланс
@@ -210,7 +210,7 @@ restart ноды ~2 мин → догон ~5 мин → compile ~3 мин → т
 
 Если упадёт на «недостаточно средств на A»: E2E тратит 50 tGRIN за прогон
 — пополнить кошелёк (см. «Пополнение» в
-`C:\DHW\Docs\grinflint-ci-wallet.txt`). Если на пустых `poll` — смотреть
+`C:\DHW\docs\grinflint-ci-wallet.txt`). Если на пустых `poll` — смотреть
 хвосты `grin-node.log`, которые workflow печатает при пустом ответе API.
 
 ### Дальше по плану

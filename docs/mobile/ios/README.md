@@ -42,7 +42,7 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 | Кеш цепи | ключ `testnet-chain-<год-W<номер>`; греет `floonet-chain-cache.yml` (вс 20:27 UTC), E2E только restore |
 | E2E | `floonet-e2e.yml` (dispatch + cron пн 04:17 UTC) |
 | Секреты ноды | `.api_secret` и `.foreign_api_secret` у кошелька должны **совпадать** (workflow уравнивает их при старте; иначе restore/refresh кошелька получает 401 и пустой баланс) |
-| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\Docs\grinflint-ci-wallet.txt` (seed+пароль); баланс 50 tGRIN, каждый зелёный E2E его тратит → нужно пополнение |
+| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс 50 tGRIN, каждый зелёный E2E его тратит → нужно пополнение |
 
 ## Локальная нода пользователя (для ручных прогонов)
 
