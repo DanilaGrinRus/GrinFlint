@@ -20,9 +20,9 @@ unsafe fn last_error() -> String {
     if p.is_null() {
         return "<нет ошибки>".into();
     }
-    let s = CStr::from_ptr(p).to_string_lossy().into_owned();
-    grin_string_free(p as *mut c_char);
-    s
+    // grin_last_error() отдаёт указатель на thread-local строку: освобождать
+    // его через grin_string_free нельзя (двойное освобождение).
+    CStr::from_ptr(p).to_string_lossy().into_owned()
 }
 
 unsafe fn take_string(p: *mut c_char) -> Option<String> {
@@ -48,13 +48,14 @@ fn funded_balance() {
     std::fs::create_dir_all(&dir).unwrap();
 
     unsafe {
+        let secret_c = secret.as_deref().map(cs);
         let h = grin_wallet_create(
             cs(dir.to_str().unwrap()).as_ptr(),
             cs(&node).as_ptr(),
             cs("floonet").as_ptr(),
-            secret
-                .as_deref()
-                .map(|s| cs(s).as_ptr())
+            secret_c
+                .as_ref()
+                .map(|s| s.as_ptr())
                 .unwrap_or(ptr::null()),
         );
         assert!(!h.is_null(), "create: {}", last_error());
