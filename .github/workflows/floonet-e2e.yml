@@ -1,0 +1,83 @@
+name: Floonet E2E
+
+# Полный roundtrip tGRIN: funded seed (секрет TEST_WALLET_SEED) → send →
+# receive → finalize → post против собственной floonet-ноды в раннере.
+# Не запускается на каждый пуш: только вручную и раз в неделю —
+# синхронизация ноды дорогая.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * 1' # понедельник 04:17 UTC (off-peak)
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  e2e:
+    name: Roundtrip tGRIN в floonet
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Кеш cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ffi/grin-wallet-ffi
+
+      - name: Скачать grin node v5.5.2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v5.5.2 --repo mimblewimble/grin \
+            --pattern 'grin-v5.5.2-linux-x86_64.tar.gz'
+          tar xzf grin-v5.5.2-linux-x86_64.tar.gz
+          GRIN_BIN="$(find . -maxdepth 2 -name grin -type f | head -1)"
+          chmod +x "$GRIN_BIN"
+          echo "GRIN_BIN=$GRIN_BIN" >> "$GITHUB_ENV"
+
+      - name: Номер недели (ключ кеша цепи)
+        id: week
+        run: echo "w=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Кеш floonet chain data
+        uses: actions/cache@v4
+        with:
+          path: ~/.grin/floonet
+          key: floonet-chain-${{ steps.week.outputs.w }}
+
+      - name: Запуск floonet-ноды
+        run: |
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
+
+      - name: Ожидание синхронизации ноды
+        timeout-minutes: 150
+        run: |
+          SECRET_FILE="$HOME/.grin/floonet/.api_secret"
+          for i in $(seq 1 90); do
+            sleep 20
+            [ -f "$SECRET_FILE" ] || continue
+            SECRET=$(cat "$SECRET_FILE")
+            S=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:3413/v2/owner \
+              -H 'Content-Type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' \
+              | jq -r '.result.Ok.sync_status // empty')
+            echo "poll $i: $S"
+            [ "$S" = "no_sync" ] && exit 0
+          done
+          echo "нода не синхронизировалась за 30 минут"; tail -40 grin-node.log; exit 1
+
+      - name: E2E roundtrip (50 tGRIN)
+        working-directory: ffi/grin-wallet-ffi
+        env:
+          GRIN_E2E_NODE_URL: http://127.0.0.1:3413
+          GRIN_E2E_SEED_FUNDED: ${{ secrets.TEST_WALLET_SEED }}
+          GRIN_E2E_CONFIRM_ROUNDS: "30"
+        run: |
+          export GRIN_E2E_API_SECRET="$(cat "$HOME/.grin/floonet/.api_secret")"
+          cargo test --test e2e_floonet -- --nocapture
