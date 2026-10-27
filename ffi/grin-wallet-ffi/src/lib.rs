@@ -137,7 +137,7 @@ pub extern "C" fn grin_wallet_create(
         // пишем дефолтный grin-wallet.toml, если его нет.
         let config_path = PathBuf::from(&config.data_file_dir).join("grin-wallet.toml");
         if !config_path.exists() {
-            let toml_str = grin_util::toml::to_string(&config)
+            let toml_str = toml::to_string(&config)
                 .map_err(|e| format!("config serialize: {e}"))?;
             std::fs::write(&config_path, toml_str)
                 .map_err(|e| format!("config write {}: {e}", config_path.display()))?;
