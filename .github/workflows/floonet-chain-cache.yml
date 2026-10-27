@@ -48,7 +48,7 @@ jobs:
             echo "снапшот $TAG найден — скачиваем"
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'floonet-chain-part-*'
             mkdir -p "$HOME/.grin/test"
-            cat testnet-chain-part-* | tar -xJ -C "$HOME/.grin/test"
+            cat floonet-chain-part-* | tar -xJ -C "$HOME/.grin/test"
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             echo "снапшот $TAG не найден — синкаем с нуля/из кеша"
