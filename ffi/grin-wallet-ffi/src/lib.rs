@@ -201,8 +201,21 @@ pub extern "C" fn grin_wallet_create_seed(
         let w = unsafe { &mut *handle };
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mnemonic = c_str(mnemonic).map(ZeroingString::from);
+        // В grin-wallet аргумент mnemonic_length у create_wallet — это
+        // БАЙТЫ энтропии (32 байта = 256 бит = 24 слова; 16 = 128 бит = 12).
+        // Снаружи (Swift/UI) принимаем количество СЛОВ и конвертируем.
+        let entropy_bytes = match mnemonic_length {
+            12 => 16,
+            15 => 20,
+            18 => 24,
+            21 => 28,
+            24 => 32,
+            other => return Err(format!(
+                "bad mnemonic_length {other}: use word count 12/15/18/21/24"
+            )),
+        };
         w.owner
-            .create_wallet(None, mnemonic, mnemonic_length, password.clone())
+            .create_wallet(None, mnemonic, entropy_bytes, password.clone())
             .map_err(|e| format!("create_wallet: {e}"))?;
         let mask = w
             .owner
