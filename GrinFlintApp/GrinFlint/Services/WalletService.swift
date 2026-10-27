@@ -39,7 +39,7 @@ protocol WalletService: AnyObject {
     func receive(slatepack: String, message: String) async throws -> TransactionRecord
 
     /// Экспортировать транзакцию как Slatepack (пока не передали контрагенту).
-    func exportSlatepack(txID: UUID) -> String?
+    func exportSlatepack(txID: UUID) async -> String?
 }
 
 /// Демо-реализация: всё состояние в памяти, транзакции не уходят в сеть.
@@ -175,7 +175,7 @@ final class MockWalletService: WalletService {
         return record
     }
 
-    func exportSlatepack(txID: UUID) -> String? {
+    func exportSlatepack(txID: UUID) async -> String? {
         transactions.first { $0.id == txID }?.slatepack
     }
 }

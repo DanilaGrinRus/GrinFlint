@@ -20,11 +20,13 @@ actor GrinWalletFFIService: WalletService {
 
     private let handle: GrinWalletHandle
     private let password: String
-    private(set) var slatepackAddress = ""
+    // nonisolated: чтение извне без await (запись остаётся actor-isolated —
+    // удовлетворяем nonisolated-требования протокола WalletService).
+    nonisolated private(set) var slatepackAddress = ""
 
     /// spendable / awaiting / locked (наногрин → Decimal GRIN при чтении)
-    private(set) var balance = Balance.zero
-    private(set) var transactions: [TransactionRecord] = []
+    nonisolated private(set) var balance = Balance.zero
+    nonisolated private(set) var transactions: [TransactionRecord] = []
 
     init(dataDir: String, nodeURL: String, chain: Chain, password: String) throws {
         self.password = password
@@ -115,7 +117,7 @@ actor GrinWalletFFIService: WalletService {
         }, handle: handle)
     }
 
-    func exportSlatepack(txID: UUID) -> String? {
+    func exportSlatepack(txID: UUID) async -> String? {
         transactions.first { $0.id == txID }?.slatepack
     }
 

@@ -68,10 +68,7 @@ struct TxDetailView: View {
 
     @Environment(WalletViewModel.self) private var viewModel
     @State private var showExport = false
-
-    private var exportedSlatepack: String? {
-        viewModel.exportSlatepack(txID: tx.id)
-    }
+    @State private var exportedSlatepack = ""
 
     var body: some View {
         ScrollView {
@@ -139,7 +136,10 @@ struct TxDetailView: View {
                         .font(.system(size: 14))
                         .foregroundStyle(Theme.textSecondary)
                     Button("Показать Slatepack") {
-                        showExport = true
+                        Task {
+                            exportedSlatepack = await viewModel.exportSlatepack(txID: tx.id) ?? ""
+                            showExport = true
+                        }
                     }
                     .buttonStyle(GrinButtonStyle(isSecondary: true))
                 }
@@ -148,7 +148,7 @@ struct TxDetailView: View {
         .sheet(isPresented: $showExport) {
             NavigationStack {
                 ScrollView {
-                    CopyableField(title: "Slatepack для получателя", value: exportedSlatepack ?? "", isMultiline: true)
+                    CopyableField(title: "Slatepack для получателя", value: exportedSlatepack, isMultiline: true)
                         .padding(16)
                 }
                 .background(Theme.background.ignoresSafeArea())

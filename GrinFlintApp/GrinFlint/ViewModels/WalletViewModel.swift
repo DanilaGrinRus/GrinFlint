@@ -63,8 +63,8 @@ final class WalletViewModel {
         }
     }
 
-    func exportSlatepack(txID: UUID) -> String? {
-        service.exportSlatepack(txID: txID)
+    func exportSlatepack(txID: UUID) async -> String? {
+        await service.exportSlatepack(txID: txID)
     }
 
     private func syncFromService() {
