@@ -9,12 +9,14 @@
 через Slatepack, история транзакций, настройки. Блокчейн-слой заменён
 `MockWalletService`.
 
-**Фаза 1 — в работе, Rust-мост собран в CI.** Крейт `ffi/grin-wallet-ffi`
-компилируется (`cargo check`), собирается в XCFramework (device + simulator)
-на GitHub Actions macOS-раннере, Swift-обёртка `GrinWalletFFIService`
-подключена к таргету приложения под флагом `GRINFFI` и собирается в CI
-вместе с приложением. Разработка идёт целиком через GitHub Actions
-(локальной сборки с Xcode на машине разработчика нет).
+**Фаза 1 — блокчейн-слой подтверждён вживую (2026-10-27).** Полный
+roundtrip tGRIN в floonet через FFI: send → slatepack → receive →
+finalize → post → подтверждение в цепи (`tests/e2e_floonet.rs`,
+проверено против локальной ноды 5.5.2; CI-кошелёк с 50 tGRIN живёт
+в секрете `TEST_WALLET_SEED`). Смоук-тест жизненного цикла (оффлайн)
+зелёный; workflow `floonet-e2e.yml` гоняет roundtrip еженедельно и
+вручную. Осталось в Фазе 1: Keychain-хранение seed, подключение
+UI-флоу к реальному сервису, Share Extension / URL scheme.
 
 ---
 
@@ -46,12 +48,17 @@
       `grin_string_free`; заголовок `ffi/include/grin_wallet_ffi.h`
 - [x] `actor GrinWalletFFIService: WalletService` — в таргете приложения
       под флагом `GRINFFI` (сборка приложения в CI идёт с XCFramework)
+- [x] Полный roundtrip tGRIN в floonet между двумя кошельками
+      (send/receive/finalize/post, подтверждение в цепи) — проверено
+      вживую через FFI против ноды 5.5.2; `tests/e2e_floonet.rs` + CI
 - [ ] Хранение seed в Keychain (SecItem), шифрование БД выходов (SQLCipher)
 - [ ] Подключение к ноде (REST API ноды Grin, порт 3413): баланс, высота, транзакции
 - [ ] Замена демо-Slatepack на настоящий (X25519 + AES-256-GCM), шифрование по адресу получателя
 - [ ] Приём Slatepack через URL scheme `grinslate:` и Share Extension
 
-**Критерий выхода:** отправка и приём реальных tGRIN в тестнете между двумя кошельками.
+**Критерий выхода:** ~~отправка и приём реальных tGRIN~~ — выполнен
+на уровне FFI (2026-10-27). Закрытие на уровне приложения (UI-флоу
+на симуляторе/устройстве) — после оставшихся пунктов Фазы 1.
 
 ## Фаза 2 — Безопасность и надёжность
 
