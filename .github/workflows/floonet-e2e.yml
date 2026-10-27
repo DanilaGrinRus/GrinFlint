@@ -18,7 +18,7 @@ jobs:
   e2e:
     name: Roundtrip tGRIN в floonet
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 60
     steps:
       - name: Клонирование
         uses: actions/checkout@v4
@@ -58,10 +58,10 @@ jobs:
           nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
 
       - name: Ожидание синхронизации ноды
-        timeout-minutes: 160
+        timeout-minutes: 50
         run: |
           SECRET_FILE="$HOME/.grin/test/.api_secret"
-          for i in $(seq 1 300); do
+          for i in $(seq 1 120); do
             sleep 20
             [ -f "$SECRET_FILE" ] || continue
             SECRET=$(cat "$SECRET_FILE")

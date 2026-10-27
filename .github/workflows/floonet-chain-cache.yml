@@ -18,7 +18,7 @@ jobs:
   warm:
     name: Синхронизация ноды и кеш цепи
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 60
     steps:
       - name: Клонирование
         uses: actions/checkout@v4
@@ -68,10 +68,10 @@ jobs:
           nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
 
       - name: Синхронизация (до 280 минут)
-        timeout-minutes: 330
+        timeout-minutes: 50
         run: |
           SECRET_FILE="$HOME/.grin/test/.api_secret"
-          for i in $(seq 1 840); do
+          for i in $(seq 1 120); do
             sleep 20
             [ -f "$SECRET_FILE" ] || continue
             SECRET=$(cat "$SECRET_FILE")
@@ -82,7 +82,7 @@ jobs:
             echo "poll $i: $S"
             [ "$S" = "no_sync" ] && exit 0
           done
-          echo "синк не завершился за 280 минут — сохраняем частичный прогресс"
+          echo "синк не завершился за 40 минут — сохраняем частичный прогресс"
           exit 1
 
       - name: Удалить прошлый кеш этой недели (ключ кеша иммутабелен)
