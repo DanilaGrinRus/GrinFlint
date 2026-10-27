@@ -61,11 +61,11 @@ jobs:
         timeout-minutes: 5
         run: |
           SECRET_FILE="$HOME/.grin/test/.api_secret"
-          for i in $(seq 1 2); do
+          for i in $(seq 1 120); do
             sleep 20
             [ -f "$SECRET_FILE" ] || continue
             SECRET=$(cat "$SECRET_FILE")
-            S=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:3413/v2/owner \
+            S=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:13413/v2/owner \
               -H 'Content-Type: application/json' \
               -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' \
               | jq -r '.result.Ok.sync_status // empty')
@@ -81,7 +81,7 @@ jobs:
       - name: E2E roundtrip (50 tGRIN)
         working-directory: ffi/grin-wallet-ffi
         env:
-          GRIN_E2E_NODE_URL: http://127.0.0.1:3413
+          GRIN_E2E_NODE_URL: http://127.0.0.1:13413
           GRIN_E2E_SEED_FUNDED: ${{ secrets.TEST_WALLET_SEED }}
           GRIN_E2E_CONFIRM_ROUNDS: "30"
         run: |

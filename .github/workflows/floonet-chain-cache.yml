@@ -14,6 +14,10 @@ on:
 env:
   CARGO_TERM_COLOR: never
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   warm:
     name: Синхронизация ноды и кеш цепи
@@ -44,7 +48,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="floonet-chain-2026-10-28"
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          FOUND=""
+          for attempt in 1 2 3; do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" 2>gh-view-err.txt; then
+              FOUND=1; break
+            fi
+            echo "gh release view не удался (попытка $attempt):"
+            cat gh-view-err.txt
+            sleep 5
+          done
+          if [ -n "$FOUND" ]; then
             echo "снапшот $TAG найден — скачиваем"
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'floonet-chain-part-*'
             mkdir -p "$HOME/.grin/test"
@@ -74,11 +87,11 @@ jobs:
         timeout-minutes: 5
         run: |
           SECRET_FILE="$HOME/.grin/test/.api_secret"
-          for i in $(seq 1 2); do
+          for i in $(seq 1 120); do
             sleep 20
             [ -f "$SECRET_FILE" ] || continue
             SECRET=$(cat "$SECRET_FILE")
-            S=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:3413/v2/owner \
+            S=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:13413/v2/owner \
               -H 'Content-Type: application/json' \
               -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' \
               | jq -r '.result.Ok.sync_status // empty')
