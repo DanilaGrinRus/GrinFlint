@@ -56,10 +56,10 @@ jobs:
           nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
 
       - name: Ожидание синхронизации ноды
-        timeout-minutes: 150
+        timeout-minutes: 160
         run: |
           SECRET_FILE="$HOME/.grin/floonet/.api_secret"
-          for i in $(seq 1 90); do
+          for i in $(seq 1 300); do
             sleep 20
             [ -f "$SECRET_FILE" ] || continue
             SECRET=$(cat "$SECRET_FILE")
@@ -70,7 +70,7 @@ jobs:
             echo "poll $i: $S"
             [ "$S" = "no_sync" ] && exit 0
           done
-          echo "нода не синхронизировалась за 30 минут"; tail -40 grin-node.log; exit 1
+          echo "нода не синхронизировалась за 100 минут"; tail -40 grin-node.log; exit 1
 
       - name: E2E roundtrip (50 tGRIN)
         working-directory: ffi/grin-wallet-ffi
