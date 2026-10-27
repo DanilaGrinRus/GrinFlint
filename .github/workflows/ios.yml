@@ -22,6 +22,11 @@ jobs:
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Кеш cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ffi/grin-wallet-ffi
+
       - name: Cargo check
         working-directory: ffi/grin-wallet-ffi
         run: cargo check 2>&1 | tail -60; exit ${PIPESTATUS[0]}
@@ -35,6 +40,11 @@ jobs:
 
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Кеш cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ffi/grin-wallet-ffi
 
       - name: Патчи зависимостей
         working-directory: ffi/grin-wallet-ffi
@@ -60,6 +70,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Кеш cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ffi/grin-wallet-ffi
 
       - name: Патчи зависимостей для iOS
         working-directory: ffi/grin-wallet-ffi
