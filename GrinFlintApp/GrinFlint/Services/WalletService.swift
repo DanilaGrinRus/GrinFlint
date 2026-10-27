@@ -22,7 +22,8 @@ protocol WalletService: AnyObject {
     func refresh() async throws
 
     /// Создать транзакцию на отправку и получить Slatepack для контрагента.
-    func prepareSend(amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal
+    /// `destination` — Slatepack-адрес получателя (grin1…).
+    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal
 
     /// Принять Slatepack контрагента и зачислить средства.
     func receive(slatepack: String, message: String) async throws -> TransactionRecord
@@ -86,8 +87,10 @@ final class MockWalletService: WalletService {
         }
     }
 
-    func prepareSend(amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
         let fee = feeTier.fee
+        let dest = destination.trimmingCharacters(in: .whitespaces)
+        guard !dest.isEmpty else { throw WalletError.invalidAddress }
         guard amount > 0 else { throw WalletError.invalidAmount }
         let needed = amount + fee
         guard balance.spendable >= needed else {
@@ -108,7 +111,7 @@ final class MockWalletService: WalletService {
             TransactionRecord(
                 id: txID, type: .sent, status: .unconfirmed,
                 amount: -amount, fee: fee, message: message,
-                slatepack: slatepack, counterpart: nil, createdAt: Date()
+                slatepack: slatepack, counterpart: dest, createdAt: Date()
             ),
             at: 0
         )

@@ -99,6 +99,7 @@ enum WalletError: LocalizedError {
     case insufficientFunds(needed: Decimal, available: Decimal)
     case invalidAmount
     case invalidSlatepack
+    case invalidAddress
     case notImplemented(String)
 
     var errorDescription: String? {
@@ -109,6 +110,8 @@ enum WalletError: LocalizedError {
             return "Некорректная сумма."
         case .invalidSlatepack:
             return "Недействительный Slatepack: сообщение должно начинаться с «grinslate1…»."
+        case .invalidAddress:
+            return "Укажите Slatepack-адрес получателя (grin1…)."
         case .notImplemented(let what):
             return "Не реализовано в демо-режиме: \(what)."
         }

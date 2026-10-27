@@ -1,3 +1,4 @@
+#if GRINFFI
 import Foundation
 
 /// Тонкая обёртка над C API (grin_wallet_ffi.h).
@@ -107,3 +108,4 @@ struct GrinSendResult: Decodable {
 struct GrinReceiveResult: Decodable {
     let slatepack: String
 }
+#endif

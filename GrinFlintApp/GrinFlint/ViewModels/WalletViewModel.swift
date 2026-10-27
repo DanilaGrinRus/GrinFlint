@@ -41,9 +41,9 @@ final class WalletViewModel {
         }
     }
 
-    func prepareSend(amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
         do {
-            let proposal = try await service.prepareSend(amount: amount, message: message, feeTier: feeTier)
+            let proposal = try await service.prepareSend(destination: destination, amount: amount, message: message, feeTier: feeTier)
             syncFromService()
             return proposal
         } catch let error as WalletError {

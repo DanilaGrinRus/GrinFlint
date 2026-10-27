@@ -5,6 +5,7 @@ struct SendFlowView: View {
     @Environment(WalletViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
 
+    @State private var destination = ""
     @State private var amountText = ""
     @State private var message = ""
     @State private var feeTier: FeeTier = .standard
@@ -13,11 +14,13 @@ struct SendFlowView: View {
     @State private var sendError: String?
 
     private var parsedAmount: Decimal? { GrinFormat.parse(amountText) }
-    private var canProceed: Bool { parsedAmount != nil }
+    private var trimmedDestination: String { destination.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var canProceed: Bool { parsedAmount != nil && !trimmedDestination.isEmpty }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                destinationSection
                 amountSection
                 messageSection
                 feeSection
@@ -49,6 +52,22 @@ struct SendFlowView: View {
             Button("OK") { sendError = nil }
         } message: {
             Text(sendError ?? "")
+        }
+    }
+
+    private var destinationSection: some View {
+        GrinCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Адрес получателя (Slatepack)")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                TextField("grin1…", text: $destination)
+                    .font(Theme.mono(14))
+                    .foregroundStyle(Theme.textPrimary)
+                    .tint(Theme.accent)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+            }
         }
     }
 
@@ -137,6 +156,7 @@ struct SendFlowView: View {
         defer { isWorking = false }
         do {
             proposal = try await viewModel.prepareSend(
+                destination: trimmedDestination,
                 amount: amount,
                 message: message.trimmingCharacters(in: .whitespaces),
                 feeTier: feeTier

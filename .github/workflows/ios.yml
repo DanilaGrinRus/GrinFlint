@@ -81,8 +81,9 @@ jobs:
           retention-days: 7
 
   build:
-    name: Сборка GrinFlint (симулятор)
+    name: Сборка GrinFlint (симулятор + FFI)
     runs-on: macos-15
+    needs: rust-ios
     steps:
       - name: Клонирование
         uses: actions/checkout@v4
@@ -90,11 +91,25 @@ jobs:
       - name: Версия Xcode
         run: xcodebuild -version
 
-      - name: Сборка
+      - name: Скачать XCFramework FFI
+        uses: actions/download-artifact@v4
+        with:
+          name: GrinWalletFFI.xcframework
+          path: ffi-artifact
+
+      - name: Сборка (с реальным FFI)
         run: |
+          XCF=ffi-artifact/GrinWalletFFI.xcframework
+          SIM_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' -path '*sim*' | head -1)
+          HEADERS=$(find "$XCF" -type d -name Headers | head -1)
+          test -n "$SIM_LIB" && test -n "$HEADERS"
           xcodebuild build \
             -project GrinFlintApp/GrinFlint.xcodeproj \
             -scheme GrinFlint \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
+            SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
+            HEADER_SEARCH_PATHS="$PWD/$HEADERS" \
+            OTHER_LDFLAGS="-L$PWD/$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
             | xcpretty && exit ${PIPESTATUS[0]}

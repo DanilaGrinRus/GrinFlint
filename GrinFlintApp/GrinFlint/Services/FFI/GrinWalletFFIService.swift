@@ -1,3 +1,4 @@
+#if GRINFFI
 import Foundation
 
 /// Реализация WalletService поверх реального grin-wallet через FFI.
@@ -68,13 +69,13 @@ actor GrinWalletFFIService: WalletService {
         transactions = t.txs.map(Self.mapTx)
     }
 
-    func prepareSend(amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amount: Decimal, message: String, feeTier: FeeTier) async throws -> SendProposal {
         let nano = Self.nano(amount)
+        let dest = destination.trimmingCharacters(in: .whitespaces)
+        guard !dest.isEmpty else { throw WalletError.invalidAddress }
         let result: GrinSendResult = try GrinFFI.call({ h in
-            grin_wallet_send(h.raw, nano, slatepackAddress /* dest передаётся выше по стеку */, message)
+            grin_wallet_send(h.raw, nano, dest, message)
         }, handle: handle, as: GrinSendResult.self)
-        // ВНИМАНИЕ: dest адрес получателя передаётся вызывающим кодом —
-        // сигнатуру WalletService нужно расширить параметром destination.
         return SendProposal(
             amount: amount,
             fee: Self.grin(result.fee),
@@ -151,3 +152,5 @@ actor GrinWalletFFIService: WalletService {
         )
     }
 }
+
+#endif // GRINFFI
