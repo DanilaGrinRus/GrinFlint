@@ -38,7 +38,25 @@ jobs:
         id: week
         run: echo "w=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
 
+      - name: Снапшот цепи из релиза (быстрый старт, если есть)
+        id: snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="floonet-chain-2026-10-27"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "снапшот $TAG найден — скачиваем"
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p 'floonet-chain-part-*'
+            mkdir -p "$HOME/.grin/floonet"
+            cat floonet-chain-part-* | tar -xJ -C "$HOME/.grin/floonet"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "снапшот $TAG не найден — синкаем с нуля/из кеша"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Восстановить кеш цепи (частичный с прошлой попытки)
+        if: steps.snapshot.outputs.found != 'true'
         uses: actions/cache/restore@v4
         with:
           path: ~/.grin/floonet
