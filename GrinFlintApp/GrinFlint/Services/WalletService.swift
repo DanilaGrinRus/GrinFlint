@@ -13,9 +13,9 @@ import Foundation
 ///   4. состояние (seed, выходы) хранить в зашифрованном контейнере
 ///      (Keychain + SQLCipher), как это делает Flint.
 protocol WalletService: AnyObject {
-    var balance: Balance { get }
-    var transactions: [TransactionRecord] { get }
-    var slatepackAddress: String { get }
+    var balance: Balance { get async }
+    var transactions: [TransactionRecord] { get async }
+    var slatepackAddress: String { get async }
 
     /// Открыть существующий кошелёк (после создания/восстановления или при
     /// старте приложения). Реализация может закэшировать slatepack-адрес.

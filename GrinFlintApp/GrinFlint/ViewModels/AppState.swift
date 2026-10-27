@@ -84,10 +84,11 @@ final class AppState {
     private func activate() async {
         do {
             try await service.open()
-            try await service.refresh()
         } catch {
             // Не блокируем UI: баланс догрузится следующим refresh().
-            onboardingError = nil
+            return
         }
+        await viewModel?.syncFromService()
+        await viewModel?.refresh()
     }
 }
