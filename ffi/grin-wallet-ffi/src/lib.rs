@@ -13,7 +13,7 @@ use grin_wallet_api::{Foreign, Owner};
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{
-    InitTxArgs, InitTxSendArgs, NodeClient, SlatepackAddress, WalletInst, WalletLCProvider,
+    InitTxArgs, InitTxSendArgs, SlatepackAddress, WalletInst,
 };
 use grin_core::global::{self, ChainTypes};
 use grin_keychain::ExtKeychain;
