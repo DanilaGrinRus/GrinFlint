@@ -6,10 +6,9 @@ description = "C-обёртка (FFI) над grin-wallet v5.5.x для iOS/Swift
 license = "Apache-2.0"
 
 [lib]
-# Только staticlib: для XCFramework нужен именно он.
-# cdylib не линкуется для iOS (___chkstk_darwin / version-min конфликты
-# между cc-объектами и target arm64-apple-ios10.0.0) и не нужен.
-crate-type = ["staticlib"]
+# staticlib — для XCFramework; rlib — чтобы работали интеграционные тесты
+# (tests/roundtrip.rs собирается на macOS-хосте в CI).
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 grin_wallet_api = "=5.5.1"
@@ -23,6 +22,9 @@ grin_util = "5.5.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = "1"
+
+[dev-dependencies]
+serde_json = "1"
 
 [profile.release]
 opt-level = 2

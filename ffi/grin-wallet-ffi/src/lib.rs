@@ -91,18 +91,21 @@ pub unsafe extern "C" fn grin_string_free(s: *mut c_char) {
 // ---------- создание / открытие ----------
 
 /// Создать контекст кошелька (не открывает seed-файл).
-/// chain: "mainnet" | "floonet".
+/// chain: "mainnet" | "floonet". api_secret: NULL или пароль Basic Auth ноды
+/// (например, для grinnode.live — см. https://grinnode.live).
 #[no_mangle]
 pub extern "C" fn grin_wallet_create(
     data_dir: *const c_char,
     node_url: *const c_char,
     chain: *const c_char,
+    api_secret: *const c_char,
 ) -> *mut GrinWallet {
     let result = guarded(|| {
         let data_dir = c_str(data_dir).unwrap_or_else(|| ".".into());
         let node_url = c_str(node_url)
             .unwrap_or_else(|| "https://grinnode.live:3413".into());
         let chain = c_str(chain).unwrap_or_else(|| "mainnet".into());
+        let api_secret = c_str(api_secret).filter(|s| !s.is_empty());
 
         let chain_type = match chain.as_str() {
             // В grin 5.5.2 тестовая сеть называется Testnet (бывш. Floonet)
@@ -118,7 +121,7 @@ pub extern "C" fn grin_wallet_create(
 
         let node_client = HTTPNodeClient::new(
             &config.check_node_api_http_addr,
-            None,
+            api_secret,
             std::time::Duration::from_secs(30),
         )
         .map_err(|e| format!("node client: {e}"))?;

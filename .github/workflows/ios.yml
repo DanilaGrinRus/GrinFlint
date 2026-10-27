@@ -26,6 +26,29 @@ jobs:
         working-directory: ffi/grin-wallet-ffi
         run: cargo check 2>&1 | tail -60; exit ${PIPESTATUS[0]}
 
+  ffi-smoke:
+    name: Смоук-тест FFI (macOS, оффлайн)
+    runs-on: macos-15
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Патчи зависимостей
+        working-directory: ffi/grin-wallet-ffi
+        run: |
+          mkdir -p .patches
+          curl -sL https://static.crates.io/crates/sysinfo/sysinfo-0.38.4.crate | tar xz -C .patches
+          curl -sL https://static.crates.io/crates/grin_wallet_impls/grin_wallet_impls-5.5.1.crate | tar xz -C .patches
+          python3 ../patches/patch_ios_deps.py .patches
+          printf '\n[patch.crates-io]\nsysinfo = { path = ".patches/sysinfo-0.38.4" }\ngrin_wallet_impls = { path = ".patches/grin_wallet_impls-5.5.1" }\n' >> Cargo.toml
+
+      - name: Тест жизненного цикла кошелька
+        working-directory: ffi/grin-wallet-ffi
+        run: cargo test --test roundtrip -- --nocapture
+
   rust-ios:
     name: Сборка FFI для iOS (XCFramework)
     runs-on: macos-15

@@ -20,8 +20,8 @@ enum GrinFFIError: LocalizedError {
 final class GrinWalletHandle {
     private(set) var raw: OpaquePointer?
 
-    init(dataDir: String, nodeURL: String, chain: String) throws {
-        raw = grin_wallet_create(dataDir, nodeURL, chain)
+    init(dataDir: String, nodeURL: String, chain: String, apiSecret: String = "") throws {
+        raw = grin_wallet_create(dataDir, nodeURL, chain, apiSecret.isEmpty ? nil : apiSecret)
         if raw == nil { throw GrinFFIError.api(GrinFFI.lastError()) }
     }
 

@@ -20,10 +20,12 @@ const char *grin_last_error(void);
 /* Освобождение строк, возвращённых API. */
 void grin_string_free(char *s);
 
-/* Создать контекст кошелька. chain: "mainnet" | "floonet". */
+/* Создать контекст кошелька. chain: "mainnet" | "floonet".
+ * api_secret: NULL/пусто или пароль Basic Auth ноды (grinnode.live). */
 GrinWallet *grin_wallet_create(const char *data_dir,
                                const char *node_url,
-                               const char *chain);
+                               const char *chain,
+                               const char *api_secret);
 
 /* Закрыть и освободить контекст. */
 void grin_wallet_destroy(GrinWallet *handle);
