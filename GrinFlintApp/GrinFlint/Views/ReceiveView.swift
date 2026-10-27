@@ -92,6 +92,15 @@ struct ReceiveView: View {
 
     private func accept() async {
         validationError = nil
+        // Приём (подпись ответного slate) защищён биометрией (Фаза 2).
+        if WalletLock.isProtectionEnabled {
+            do {
+                try await BiometricAuth.require(reason: "Подтвердите приём средств")
+            } catch {
+                validationError = error.localizedDescription
+                return
+            }
+        }
         isWorking = true
         defer { isWorking = false }
         do {

@@ -3,8 +3,12 @@ import SwiftUI
 /// Настройки кошелька.
 struct SettingsView: View {
     @Environment(WalletViewModel.self) private var viewModel
+    @Environment(AppLockManager.self) private var lock
 
     @AppStorage("nodeURL") private var nodeURL = WalletFactory.defaultNodeURL
+    @AppStorage(WalletLock.requireBiometricsKey) private var requireBiometrics = false
+    @AppStorage(WalletLock.autoLockIntervalKey) private var autoLockIntervalRaw =
+        WalletLock.Interval.oneMinute.rawValue
     @State private var showSeed = false
 
     /// Демо-сид-фраза (НЕ используйте реальные средства с ней).
@@ -58,9 +62,40 @@ struct SettingsView: View {
             SectionHeader(title: "Безопасность")
             GrinCard {
                 VStack(spacing: 12) {
-                    Toggle("Требовать Face ID при входе", isOn: .constant(true))
-                        .tint(Theme.accent)
+                    Toggle(
+                        "Требовать \(BiometricAuth.displayName) при входе",
+                        isOn: $requireBiometrics
+                    )
+                    .tint(Theme.accent)
+                    .foregroundStyle(Theme.textPrimary)
+                    .onChange(of: requireBiometrics) { _, enabled in
+                        // Включили защиту — сразу показываем экран блокировки.
+                        if enabled { lock.lockNow() }
+                    }
+
+                    if requireBiometrics {
+                        Divider().overlay(Theme.stroke)
+
+                        Picker("Автоблокировка", selection: $autoLockIntervalRaw) {
+                            ForEach(WalletLock.Interval.allCases) { interval in
+                                Text(interval.title).tag(interval.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
                         .foregroundStyle(Theme.textPrimary)
+                        .tint(Theme.accent)
+
+                        Divider().overlay(Theme.stroke)
+
+                        Button {
+                            lock.lockNow()
+                        } label: {
+                            Label("Заблокировать сейчас", systemImage: "lock.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
 
                     Divider().overlay(Theme.stroke)
 

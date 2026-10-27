@@ -152,6 +152,15 @@ struct SendFlowView: View {
 
     private func prepare() async {
         guard let amount = parsedAmount else { return }
+        // Подпись транзакции защищена биометрией (Фаза 2).
+        if WalletLock.isProtectionEnabled {
+            do {
+                try await BiometricAuth.require(reason: "Подтвердите отправку средств")
+            } catch {
+                sendError = error.localizedDescription
+                return
+            }
+        }
         isWorking = true
         defer { isWorking = false }
         do {

@@ -3,6 +3,8 @@ import SwiftUI
 /// Корневой экран: онбординг, затем табы, как в Flint Wallet.
 struct ContentView: View {
     @State private var appState = AppState()
+    @State private var lock = AppLockManager()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let appearance = UITabBarAppearance()
@@ -22,6 +24,28 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        // Каждое касание — активность: сбрасывает таймер автоблокировки.
+        .simultaneousGesture(
+            TapGesture().onEnded { lock.sendActivity() }
+        )
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                lock.sceneDidBecomeActive()
+            case .background, .inactive:
+                lock.sceneDidEnterBackground()
+            @unknown default:
+                break
+            }
+        }
+        .overlay {
+            // Контент полностью закрыт (как фон в десктопном shell),
+            // автоблокировка безопасна только когда экран незаметен.
+            if lock.isLocked {
+                LockScreenView(lock: lock)
+                    .transition(.opacity)
+            }
+        }
     }
 
     private var tabView: some View {
@@ -40,5 +64,6 @@ struct ContentView: View {
                 }
         }
         .tint(Theme.accent)
+        .environment(lock)
     }
 }
