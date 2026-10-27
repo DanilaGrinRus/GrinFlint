@@ -133,7 +133,15 @@ pub extern "C" fn grin_wallet_create(
         let lc = wallet.lc_provider().map_err(|e| format!("lc: {e}"))?;
         let _ = lc.set_top_level_directory(&config.data_file_dir);
 
+        // init_send_tx и ряд других вызовов читают конфиг из файла —
+        // пишем дефолтный grin-wallet.toml, если его нет.
         let config_path = PathBuf::from(&config.data_file_dir).join("grin-wallet.toml");
+        if !config_path.exists() {
+            let toml_str = grin_util::toml::to_string(&config)
+                .map_err(|e| format!("config serialize: {e}"))?;
+            std::fs::write(&config_path, toml_str)
+                .map_err(|e| format!("config write {}: {e}", config_path.display()))?;
+        }
         let owner = Owner::new(std::sync::Arc::new(grin_util::Mutex::new(wallet)), None, config_path.clone());
         Ok(GrinWallet { owner, mask: None, config_path })
     });
