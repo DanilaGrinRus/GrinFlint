@@ -4,7 +4,7 @@
 //! детерминированность восстановления (тот же адрес из той же фразы).
 
 use grin_wallet_ffi::*;
-use std::ffi::{CStr, CString};
+use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 
 fn cs(s: &str) -> CString {
