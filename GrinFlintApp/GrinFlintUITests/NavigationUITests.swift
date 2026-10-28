@@ -175,7 +175,13 @@ final class NavigationUITests: XCTestCase {
             fail("нет доступной строки «Адресная книга» в настройках")
             return
         }
-        bookLink.tap()
+        // Тап по подписи «Контакты»: надёжнее, чем центр кнопки.
+        let bookText = app.staticTexts["Контакты"]
+        if bookText.exists && bookText.isHittable {
+            bookText.tap()
+        } else {
+            bookLink.tap()
+        }
         guard app.navigationBars["Адресная книга"].waitForExistence(timeout: 10) else {
             print("BOOK DEBUG: \(app.debugDescription)")
             fail("адресная книга не открылась")

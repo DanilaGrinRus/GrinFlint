@@ -56,6 +56,9 @@ struct SettingsView: View {
                         Image(systemName: "chevron.right")
                             .foregroundStyle(Theme.textTertiary)
                     }
+                    // Без contentShape у plain-кнопки нажимается только текст,
+                    // а область Spacer — нет (нашёл XCUITest).
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings.addressBook")
