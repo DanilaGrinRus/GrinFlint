@@ -10,7 +10,12 @@ final class NavigationUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-walletExists", "YES", "-simDemo"]
+        // Симулятор в CI англоязычный: тесты проверяют русские тексты,
+        // поэтому язык задаётся явно (английский проверяется отдельным тестом).
+        app.launchArguments = [
+            "-walletExists", "YES", "-simDemo",
+            "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"
+        ]
         app.launch()
     }
 
@@ -115,6 +120,7 @@ final class NavigationUITests: XCTestCase {
         app.terminate()
         app.launchArguments = [
             "-walletExists", "YES", "-simDemo",
+            "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU",
             "-simIncoming", "BEGINSLATEPACK.test"
         ]
         app.launch()

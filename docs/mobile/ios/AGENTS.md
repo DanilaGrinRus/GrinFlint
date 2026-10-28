@@ -98,10 +98,13 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 | `GrinFlintApp/GrinFlint/Theme.swift` | Все цвета/радиусы/шрифты (токены Flint) |
 | `GrinFlintApp/GrinFlint/SimSmoke.swift` | Самопроверка для CI: запуск с `-SimSmoke` прогоняет Keychain → FFI → seed → open → refresh → восстановление, пишет `Documents/sim-smoke.json`. Кадры для CI: `-simDemo` (демо-данные) и `-simOpen <экран>` |
 | `GrinFlintApp/GrinFlintUITests/` | XCUITest навигации (`NavigationUITests`): вкладки, отправка, приём; запускается в CI |
-| `GrinFlintApp/Info.plist` | Info.plist приложения: `CFBundleURLTypes` со схемой `grinslate`, launch screen, ориентации |
+| `GrinFlintApp/Info.plist` | Info.plist приложения: `CFBundleURLTypes` со схемой `grinslate`, `CFBundleLocalizations` ru/en, launch screen, ориентации |
+| `GrinFlintApp/ShareExtensionInfo.plist` | Info.plist Share Extension: `NSExtensionPointIdentifier = com.apple.share-services`, активация по тексту и web URL |
+| `GrinFlintApp/GrinFlintShare/` | Share Extension (`ShareViewController`): открывает `grinslate://` из системного «Поделиться» |
+| `GrinFlintApp/GrinFlint/Localizable.xcstrings` | Каталог строк: sourceLanguage `ru`, английские переводы |
 | `GrinFlintApp/SimulatorEntitlements.plist` | Entitlements для ad-hoc подписи симуляторной сборки (без подписи Keychain даёт `-34018`) |
 | `GrinFlintApp/GrinFlint/Views/` | Экраны: Portfolio, SendFlow, Receive, Transactions, Settings, Onboarding, LockScreen, StartupError |
-| `GrinFlintApp/GrinFlint/Services/` | `WalletService` (протокол) + `UnavailableWalletService`, `MockWalletService` (демо), `WalletFactory`, `KeychainStore`, `BiometricAuth`, `SlatepackCodec`, `TxReminders` (локальные напоминания), `FFI/GrinWalletFFIService` (под флагом `GRINFFI`) |
+| `GrinFlintApp/GrinFlint/Services/` | `WalletService` (протокол) + `UnavailableWalletService`, `MockWalletService` (демо), `WalletFactory`, `KeychainStore`, `BiometricAuth`, `SlatepackCodec`, `TxReminders` (локальные напоминания), `AddressBook` (контакты), `QRCode`, `FFI/GrinWalletFFIService` (под флагом `GRINFFI`) |
 | `GrinFlintApp/GrinFlint/ViewModels/` | `AppState`, `WalletViewModel`, `AppLockManager` |
 | `ffi/grin-wallet-ffi/` | Rust-крейт: C-API над grin-wallet 5.5.1 (`staticlib` + `rlib`), заголовок `ffi/include/grin_wallet_ffi.h`, тесты |
 | `ffi/grin-wallet-ffi/tests/roundtrip.rs` | Смоук-тест lifecycle (оффлайн, macOS-раннер) |
@@ -246,6 +249,32 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   `docs/mobile/ios/README.md`.
 
 ## Ближайшие открытые пункты
+
+### Продолжение с 2026-10-28 (21:15 локаль = 14:15 UTC)
+
+**Share Extension.** Новый таргет `GrinFlintShare`
+(`com.apple.product-type.app-extension`, synchronized group), встроен в
+приложение фазой Embed Foundation Extensions; приложение зависит от
+расширения. `ShareViewController` берёт текст или URL из `NSExtensionItem`
+и открывает `grinslate://receive?text=<url-encoded>` — App Group не нужен,
+данные идут через URL. Кодирование — всё, кроме `A-Za-z0-9-._~`, чтобы
+`+`, `=` и `/` из Slatepack не терялись в query. Активация — текст и web
+URL. Проверка в CI: `.appex` лежит в `PlugIns`, а
+`NSExtensionPointIdentifier` печатается как `com.apple.share-services`
+(run 40700203870).
+
+**Адресная книга.** `AddressBook` (имя + Grin-адрес, UserDefaults, не
+секрет), `ContactsView` (список/добавление/удаление), вход из настроек
+(`settings.addressBook`), чипы контактов в отправке подставляют адрес
+(`send.contact`).
+
+**Локализация RU/EN.** `Localizable.xcstrings` (sourceLanguage `ru`,
+83 строки с английским переводом), `CFBundleLocalizations` ru/en. Русские
+строки остаются ключами в коде; английский приходит из каталога. Строки с
+интерполяцией (`"Требовать \(…)"`) пока не локализованы — их надо
+переводить через формат-строки отдельно.
+
+**XCUITest — 6 тестов** (плюс адресная книга и английская локализация).
 
 ### Продолжение с 2026-10-28 (20:15 локаль = 13:15 UTC)
 
@@ -483,11 +512,12 @@ restart ноды ~2 мин → догон ~5 мин → compile ~3 мин → т
 
 ### Дальше по плану
 
-1. Share Extension: приём Slatepack из системного «Поделиться» (новый таргет
-   + URL-передача в приложение; правка проекта).
-2. Адресная книга и локализация (RU/EN) — остаток Фазы 3.
-3. Рутинная проверка на устройстве: биометрия Keychain, напоминания,
-   автоблокировка (сейчас проверено только сборкой/симулятором).
+1. Сканер QR камерой (нужен `NSCameraUsageDescription` в Info.plist) —
+   остаток Фазы 3.
+2. Проверка на устройстве: биометрия Keychain, Share Extension из
+   «Поделиться», напоминания, автоблокировка (сейчас только сборка и
+   симулятор).
+3. Локализация строк с интерполяцией (формат-строки) и вычитка EN.
 4. Расширять XCUITest: отмена транзакции, пустые состояния, ошибки.
 5. Вернуть текст сообщения к транзакции — только вместе с отдельным каналом
    передачи (Grinbox/Nostr, Фаза 5): slatepack 5.5.1 его не несёт.
