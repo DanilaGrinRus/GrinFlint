@@ -98,11 +98,13 @@ struct PortfolioView: View {
             } label: {
                 actionButton(title: "Отправить", icon: "arrow.up", color: Theme.accent)
             }
+            .accessibilityIdentifier("portfolio.send")
             NavigationLink {
                 ReceiveView()
             } label: {
                 actionButton(title: "Получить", icon: "arrow.down", color: Theme.positive)
             }
+            .accessibilityIdentifier("portfolio.receive")
         }
     }
 

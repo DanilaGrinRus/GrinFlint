@@ -155,6 +155,33 @@ jobs:
             OTHER_LDFLAGS="-L$PWD/$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
             | xcpretty && exit ${PIPESTATUS[0]}
 
+      # XCUITest: тапы по экранам в симуляторе (демо-сервис, без сети).
+      - name: UI-тесты на симуляторе (XCUITest)
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          XCF=ffi-artifact/GrinWalletFFI.xcframework
+          [ -d "$XCF" ] || XCF=ffi-artifact
+          SIM_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' -path '*sim*' | head -1)
+          HEADERS=$(find "$XCF" -type d -name Headers | head -1)
+          test -n "$SIM_LIB" && test -n "$HEADERS"
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone' | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          test -n "$DEVICE" || { echo "симулятор не найден"; exit 1; }
+          echo "device: $DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcodebuild test \
+            -project GrinFlintApp/GrinFlint.xcodeproj \
+            -scheme GrinFlint \
+            -derivedDataPath "$PWD/build" \
+            -destination "platform=iOS Simulator,id=$DEVICE" \
+            -only-testing:GrinFlintUITests \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
+            SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
+            HEADER_SEARCH_PATHS="$PWD/$HEADERS" \
+            OTHER_LDFLAGS="-L$PWD/$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
       # Реальный запуск на симуляторе: приложение стартует с `-SimSmoke`
       # и прогоняет Keychain → FFI → seed → open → refresh → восстановление.
       - name: Смоук на симуляторе (запуск app + FFI)
