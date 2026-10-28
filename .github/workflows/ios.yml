@@ -176,11 +176,21 @@ jobs:
             -derivedDataPath "$PWD/build" \
             -destination "platform=iOS Simulator,id=$DEVICE" \
             -only-testing:GrinFlintUITests \
+            -resultBundlePath "$PWD/uitest.xcresult" \
             SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
             SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
             HEADER_SEARCH_PATHS="$PWD/$HEADERS" \
             OTHER_LDFLAGS="-L$PWD/$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
             | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Результаты UI-тестов (xcresult)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uitest-results
+          path: uitest.xcresult
+          if-no-files-found: warn
+          retention-days: 7
 
       # Реальный запуск на симуляторе: приложение стартует с `-SimSmoke`
       # и прогоняет Keychain → FFI → seed → open → refresh → восстановление.
