@@ -13,7 +13,7 @@ final class NavigationUITests: XCTestCase {
         // Симулятор в CI англоязычный: тесты проверяют русские тексты,
         // поэтому язык задаётся явно (английский проверяется отдельным тестом).
         app.launchArguments = [
-            "-walletExists", "YES", "-simDemo",
+            "-walletExists", "YES", "-simDemo", "-simResetState",
             "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"
         ]
         app.launch()
