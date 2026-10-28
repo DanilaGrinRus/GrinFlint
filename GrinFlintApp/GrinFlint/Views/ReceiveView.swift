@@ -9,6 +9,7 @@ struct ReceiveView: View {
     @State private var receivedTx: TransactionRecord?
     @State private var isWorking = false
     @State private var validationError: String?
+    @State private var qrImage: UIImage?
 
     /// `initialSlatepack` — текст из ссылки `grinslate://` или из буфера.
     init(initialSlatepack: String = "") {
@@ -37,6 +38,10 @@ struct ReceiveView: View {
                 dismiss()
             }
         }
+        .task(id: viewModel.slatepackAddress) {
+            // QR пересчитывается только при смене адреса.
+            qrImage = QRCode.image(for: viewModel.slatepackAddress)
+        }
     }
 
     private var myAddressSection: some View {
@@ -45,6 +50,17 @@ struct ReceiveView: View {
             GrinCard {
                 VStack(spacing: 12) {
                     CopyableField(title: "Grin-адрес", value: viewModel.slatepackAddress)
+                    if let qrImage {
+                        Image(uiImage: qrImage)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 168, height: 168)
+                            .padding(10)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .accessibilityIdentifier("receive.qr")
+                    }
                     Label("По этому адресу можно получать Slatepack-ответы",
                           systemImage: "info.circle")
                         .font(.system(size: 12))

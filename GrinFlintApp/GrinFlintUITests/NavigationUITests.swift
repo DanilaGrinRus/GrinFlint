@@ -104,6 +104,10 @@ final class NavigationUITests: XCTestCase {
                 .waitForExistence(timeout: 5),
             "на экране приёма нет адреса"
         )
+        XCTAssertTrue(
+            app.images["receive.qr"].waitForExistence(timeout: 10),
+            "нет QR-кода адреса"
+        )
     }
 
     /// Ссылка `grinslate://` открывает лист приёма с подставленным Slatepack.
@@ -124,5 +128,24 @@ final class NavigationUITests: XCTestCase {
             (editor.value as? String)?.contains("BEGINSLATEPACK") == true,
             "в поле нет текста из ссылки"
         )
+    }
+
+    /// Детали транзакции открываются из истории.
+    func testTransactionDetail() {
+        waitPortfolio()
+        selectTab(index: 1, title: "Транзакции")
+        XCTAssertTrue(
+            app.navigationBars["Транзакции"].waitForExistence(timeout: 10),
+            "экран «Транзакции» не открылся"
+        )
+
+        let row = app.buttons.containing(.staticText, identifier: "Получено").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "нет строки транзакции")
+        row.tap()
+        XCTAssertTrue(
+            app.navigationBars["Детали"].waitForExistence(timeout: 10),
+            "детали транзакции не открылись"
+        )
+        XCTAssertTrue(app.staticTexts["Комиссия"].exists, "в деталях нет комиссии")
     }
 }

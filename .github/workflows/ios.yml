@@ -268,8 +268,8 @@ jobs:
           sleep 3
           xcrun simctl openurl "$DEVICE" "grinslate://receive?text=BEGINSLATEPACK.test"
           sleep 4
-          xcrun simctl io "$DEVICE" screenshot "$PWD/screenshots/receive-from-url.png"
-          echo "снят receive-from-url.png"
+          xcrun simctl io "$DEVICE" screenshot "$PWD/screenshots/url-scheme-prompt.png"
+          echo "снят url-scheme-prompt.png"
           xcrun simctl terminate "$DEVICE" com.dan.grinflint >/dev/null 2>&1 || true
           ls -la "$PWD/screenshots"
           echo "--- паники/ошибки приложения в логе симулятора ---"
