@@ -98,6 +98,7 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 | `GrinFlintApp/GrinFlint/Theme.swift` | Все цвета/радиусы/шрифты (токены Flint) |
 | `GrinFlintApp/GrinFlint/SimSmoke.swift` | Самопроверка для CI: запуск с `-SimSmoke` прогоняет Keychain → FFI → seed → open → refresh → восстановление, пишет `Documents/sim-smoke.json`. Кадры для CI: `-simDemo` (демо-данные) и `-simOpen <экран>` |
 | `GrinFlintApp/GrinFlintUITests/` | XCUITest навигации (`NavigationUITests`): вкладки, отправка, приём; запускается в CI |
+| `GrinFlintApp/Info.plist` | Info.plist приложения: `CFBundleURLTypes` со схемой `grinslate`, launch screen, ориентации |
 | `GrinFlintApp/SimulatorEntitlements.plist` | Entitlements для ad-hoc подписи симуляторной сборки (без подписи Keychain даёт `-34018`) |
 | `GrinFlintApp/GrinFlint/Views/` | Экраны: Portfolio, SendFlow, Receive, Transactions, Settings, Onboarding, LockScreen, StartupError |
 | `GrinFlintApp/GrinFlint/Services/` | `WalletService` (протокол) + `UnavailableWalletService`, `MockWalletService` (демо), `WalletFactory`, `KeychainStore`, `BiometricAuth`, `SlatepackCodec`, `TxReminders` (локальные напоминания), `FFI/GrinWalletFFIService` (под флагом `GRINFFI`) |
@@ -245,6 +246,37 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   `docs/mobile/ios/README.md`.
 
 ## Ближайшие открытые пункты
+
+### Продолжение с 2026-10-28 (20:15 локаль = 13:15 UTC)
+
+**URL scheme `grinslate:`.** Кастомный `GrinFlintApp/Info.plist`
+(`CFBundleURLTypes`, схема `grinslate`), app-таргет переключён на
+`INFOPLIST_FILE` вместо генерации. Формат:
+`grinslate://receive?text=<url-encoded slatepack>` (поддерживается и
+`grinslate://<данные>`). `ContentView.onOpenURL` разбирает ссылку через
+`AppState.slatepack(from:)` и открывает лист приёма с подставленным текстом
+(`ReceiveView(initialSlatepack:)`). Проверено XCUITest
+`testIncomingSlatepackSheet` и `xcrun simctl openurl` в CI — система
+показывает «Open in GrinFlint?» (кадр `url-scheme-prompt.png`), то есть
+схема зарегистрирована.
+
+**QR адреса.** `QRCode.swift` (CoreImage) + QR на экране приёма (белая
+подложка, идентификатор `receive.qr`), пересчёт при смене адреса.
+
+**Пароль Keychain под биометрией.** Элемент создаётся с `SecAccessControl`
+`.userPresence` (Face ID/Touch ID, фолбэк на код устройства); чтение идёт
+через системный запрос «Разблокируйте кошелёк», отмена объясняется
+по-русски. `.biometryCurrentSet` **сознательно не используется**: после
+сброса/новой регистрации Face ID элемент становится нечитаемым, и пароль
+кошелька теряется безвозвратно. На симуляторе — прежняя политика (Face ID
+там нет), смоук в CI не ломается. **На устройстве не проверялось** —
+это первый кандидат на ручную проверку.
+
+**XCUITest расширен до 4 тестов** (run 40691875916, 0 падений): вкладки,
+отправка/приём (с QR), лист приёма по ссылке, детали транзакции.
+
+**Осталось из пункта «Фаза 3»:** адресная книга и локализация; Share
+Extension (приём из системного «Поделиться») — отдельная задача.
 
 ### Продолжение с 2026-10-28 (19:30 локаль = 12:30 UTC)
 
@@ -451,11 +483,11 @@ restart ноды ~2 мин → догон ~5 мин → compile ~3 мин → т
 
 ### Дальше по плану
 
-1. URL scheme `grinslate:` и Share Extension: приём Slatepack без копипаста
-   (требует правки проекта: Info.plist и/или новый таргет — с согласия).
-2. Привязать пароль Keychain к биометрии (`kSecAccessControlBiometryCurrentSet`)
-   и решить политику `BiometricAuth` при недоступной биометрии.
-3. Фаза 3 роадмапа: QR для адреса/Slatepack, адресная книга, локализация.
-4. Вернуть текст сообщения к транзакции — только вместе с отдельным каналом
+1. Share Extension: приём Slatepack из системного «Поделиться» (новый таргет
+   + URL-передача в приложение; правка проекта).
+2. Адресная книга и локализация (RU/EN) — остаток Фазы 3.
+3. Рутинная проверка на устройстве: биометрия Keychain, напоминания,
+   автоблокировка (сейчас проверено только сборкой/симулятором).
+4. Расширять XCUITest: отмена транзакции, пустые состояния, ошибки.
+5. Вернуть текст сообщения к транзакции — только вместе с отдельным каналом
    передачи (Grinbox/Nostr, Фаза 5): slatepack 5.5.1 его не несёт.
-5. Расширять XCUITest: экран деталей транзакции, отмена, пустые состояния.
