@@ -678,6 +678,66 @@ pub extern "C" fn grin_wallet_parse_amount(text: *const c_char) -> *mut c_char {
     }
 }
 
+/// Оценка комиссии до подписания: сумма + реальная комиссия от backend.
+/// Ничего не блокирует и не создаёт транзакцию (`estimate_only`).
+#[no_mangle]
+pub extern "C" fn grin_wallet_estimate_fee(
+    handle: *mut GrinWallet,
+    amount_nanogrin: u64,
+    dest: *const c_char,
+) -> *mut c_char {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
+        let w = wallet_mut(handle)?;
+        global::set_local_chain_type(w.chain_type);
+        let dest = c_str(dest).ok_or("dest is null")?;
+        SlatepackAddress::try_from(dest.as_str()).map_err(|e| format!("bad dest: {e}"))?;
+
+        let args = InitTxArgs {
+            src_acct_name: None,
+            amount: amount_nanogrin,
+            amount_includes_fee: Some(false),
+            minimum_confirmations: 2,
+            max_outputs: 500,
+            num_change_outputs: 1,
+            selection_strategy_is_use_all: true,
+            refresh_outputs_from_node: true,
+            target_slate_version: None,
+            ttl_blocks: None,
+            payment_proof_recipient_address: None,
+            estimate_only: Some(true),
+            late_lock: Some(false),
+            send_args: Some(InitTxSendArgs {
+                dest,
+                post_tx: false,
+                fluff: false,
+                skip_tor: Some(true),
+            }),
+        };
+        let slate = w
+            .owner
+            .init_send_tx(w.mask.as_ref(), args)
+            .map_err(|e| format!("init_send_tx(estimate): {e}"))?;
+        let fee = slate.fee_fields.fee();
+        // slate.amount при use_all — сумма выбранных входов; итоговое списание
+        // для пользователя = сумма перевода + комиссия.
+        let total = amount_nanogrin
+            .checked_add(fee)
+            .ok_or_else(|| "сумма + комиссия переполняют u64".to_string())?;
+        Ok(json!({ "fee": fee, "total": total }))
+    });
+    match result {
+        Ok(Ok(v)) => ok_json(v),
+        Ok(Err(e)) => {
+            set_error(e);
+            fail()
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_estimate_fee"));
+            fail()
+        }
+    }
+}
+
 /// Состояние перевода по общим правилам: этап, next_action и допустимые
 /// действия. `wallet_state` — состояние журнала (prepared, response_received,
 /// posted, confirmed, …); неизвестное состояние считается recoverable.

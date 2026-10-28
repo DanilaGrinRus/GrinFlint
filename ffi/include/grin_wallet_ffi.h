@@ -67,6 +67,10 @@ int32_t grin_wallet_cancel(GrinWallet *handle, const char *slate_id);
  * Возвращает {"chain":"mainnet|testnet","hash":<hex>}; NULL — ошибка. */
 char *grin_wallet_chain_genesis(const char *chain);
 
+/* Оценка комиссии до подписания (estimate_only, без блокировки средств).
+ * Возвращает {"fee":<u64>,"total":<u64>}; NULL — ошибка. */
+char *grin_wallet_estimate_fee(GrinWallet *handle, uint64_t amount_nanogrin, const char *dest);
+
 /* Точный разбор суммы по общему контракту (до 9 знаков, без переполнения).
  * Возвращает {"nano":<u64>,"display":"..."}; NULL — ошибка. */
 char *grin_wallet_parse_amount(const char *text);

@@ -25,7 +25,7 @@ FAIL — не работает. Зелёная сборка не означае�
 | Share Extension | `.appex` в PlugIns, `share-services` в CI | PASS (сборка) / NOT VERIFIED (устройство) |
 | Отмена перевода | `cancel` через FFI-тест ошибок; UI-отмена не реализована | FAIL (UI) |
 | Повторная публикация после сбоя post_tx | не реализовано (журнал 2 стадии) | FAIL |
-| Комиссия до подтверждения от backend | декоративные fee tiers | FAIL |
+| Комиссия до подтверждения от backend | `grin_wallet_estimate_fee` + live-тест: fee 23 500 000, total 1 023 500 000, баланс не списан | PASS (FFI) / FAIL (UI: fee tiers) |
 | Состояние «баланс неизвестен» (offline/401) | баннер ошибки, но нули возможны | FAIL |
 | Восстановление после прерывания (этапы) | текст этапов есть; продолжение не проверено на устройстве | NOT VERIFIED |
 | Face ID/Touch ID, код устройства на устройстве | см. DEVICE_ACCEPTANCE D1 | NOT VERIFIED |
