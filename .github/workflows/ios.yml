@@ -205,6 +205,8 @@ jobs:
           # --- Скриншоты реальных экранов ---
           # Флаги передаются аргументами запуска: UserDefaults читает их из
           # домена аргументов, поэтому настройки не пишутся на диск.
+          # `-simDemo` подменяет сервис демо-данными (кадры дизайна),
+          # `-simOpen` сразу открывает нужный экран.
           mkdir -p "$PWD/screenshots"
           shot() { # $1 — имя файла; дальше — аргументы запуска
             local name="$1"; shift
@@ -215,8 +217,13 @@ jobs:
             echo "снят $name.png"
           }
           shot onboarding
-          shot lockscreen -requireBiometrics YES
-          shot portfolio -walletExists YES
+          shot portfolio-real -walletExists YES
+          shot portfolio-demo -walletExists YES -simDemo
+          shot send -walletExists YES -simDemo -simOpen send
+          shot receive -walletExists YES -simDemo -simOpen receive
+          shot transactions -walletExists YES -simDemo -simOpen transactions
+          shot settings -walletExists YES -simDemo -simOpen settings
+          shot auth-prompt -requireBiometrics YES
           xcrun simctl terminate "$DEVICE" com.dan.grinflint >/dev/null 2>&1 || true
           ls -la "$PWD/screenshots"
 

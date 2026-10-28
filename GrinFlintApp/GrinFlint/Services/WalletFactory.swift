@@ -43,6 +43,12 @@ enum WalletFactory {
     }
 
     static func makeService() -> any WalletService {
+        // Скриншоты в CI (`-simDemo`): демо-данные вместо реального сервиса,
+        // чтобы кадры выглядели как наполненный кошелёк. В обычном запуске
+        // флаг не передаётся.
+        if ProcessInfo.processInfo.arguments.contains("-simDemo") {
+            return MockWalletService()
+        }
         #if GRINFFI
         do {
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

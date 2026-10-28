@@ -40,6 +40,11 @@ final class WalletViewModel {
         errorMessage = nil
     }
 
+    /// Показать ошибку, пришедшую не из операций сервиса (например, при старте).
+    func reportError(_ message: String) {
+        errorMessage = message
+    }
+
     func refresh() async {
         guard !isRefreshing else { return }
         isRefreshing = true

@@ -20,8 +20,15 @@ struct ContentView: View {
                 // Реальный сервис не поднялся: показываем причину, а не демо.
                 StartupErrorView(reason: reason)
             } else if let viewModel = appState.viewModel {
-                tabView
-                    .environment(viewModel)
+                if let target = simOpenTarget {
+                    // Скриншоты в CI: сразу нужный экран, без тапов.
+                    SimScreenHost(target: target)
+                        .environment(viewModel)
+                        .environment(lock)
+                } else {
+                    tabView
+                        .environment(viewModel)
+                }
             } else {
                 OnboardingView(appState: appState)
             }
@@ -68,5 +75,38 @@ struct ContentView: View {
         }
         .tint(Theme.accent)
         .environment(lock)
+    }
+
+    /// Для скриншотов в CI: `-simOpen send|receive|transactions|settings`.
+    private var simOpenTarget: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-simOpen"), args.count > index + 1 else {
+            return nil
+        }
+        return args[index + 1]
+    }
+}
+
+/// Прямой показ одного экрана для скриншотов. В обычном запуске не используется.
+struct SimScreenHost: View {
+    let target: String
+
+    var body: some View {
+        switch target {
+        case "send":
+            NavigationStack { SendFlowView() }
+        case "receive":
+            NavigationStack { ReceiveView() }
+        case "transactions":
+            TransactionsView()
+        case "settings":
+            SettingsView()
+        default:
+            Text("Неизвестный экран: \(target)")
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.textPrimary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.background.ignoresSafeArea())
+        }
     }
 }

@@ -90,7 +90,8 @@ final class AppState {
         do {
             try await service.open()
         } catch {
-            // Не блокируем UI: баланс догрузится следующим refresh().
+            // Раньше ошибка открытия терялась: экран показывал нули без причины.
+            viewModel?.reportError("Кошелёк не открылся: \(error.localizedDescription)")
             return
         }
         await viewModel?.syncFromService()
