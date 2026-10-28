@@ -410,3 +410,156 @@ fn ffi_rejects_null_handles_and_arguments() {
         grin_wallet_destroy(ptr::null_mut());
     }
 }
+/// Вызовы до open возвращают ошибку и не ломают контекст.
+#[test]
+fn calls_before_open_fail_cleanly() {
+    unsafe {
+        let dir = unique_dir("preopen");
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            cs("http://127.0.0.1:1").as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create: {}", last_error());
+
+        assert!(grin_wallet_txs(h).is_null(), "txs до open должен вернуть NULL");
+        let e = last_error();
+        assert!(!e.is_empty(), "ошибка должна быть непустой");
+
+        assert!(grin_wallet_balance(h, 0).is_null());
+        assert!(
+            grin_wallet_send(h, 1, cs("tgrin1qqqqqqqqqqqqqqqqqqqqqqqqqqqq").as_ptr()).is_null()
+        );
+
+        // Контекст переживает ошибки: seed создаётся, кошелёк открывается.
+        let seed = take_string(grin_wallet_create_seed(
+            h,
+            cs("pass").as_ptr(),
+            24,
+            ptr::null(),
+        ));
+        assert!(seed.is_some(), "create_seed после ошибок: {}", last_error());
+        let open = take_string(grin_wallet_open(h, cs("pass").as_ptr()));
+        assert!(open.is_some(), "open после ошибок: {}", last_error());
+
+        grin_wallet_destroy(h);
+    }
+}
+
+/// Нулевая сумма и сумма больше баланса — ошибки без создания транзакции.
+#[test]
+fn send_rejects_zero_and_insufficient() {
+    unsafe {
+        let dir = unique_dir("sendguard");
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            cs("http://127.0.0.1:1").as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create: {}", last_error());
+        let seed = take_string(grin_wallet_create_seed(h, cs("pass").as_ptr(), 24, ptr::null()))
+            .expect("create_seed");
+        let _ = seed;
+        let open = take_string(grin_wallet_open(h, cs("pass").as_ptr())).expect("open");
+        let address = field(&open, "address");
+
+        assert!(
+            grin_wallet_send(h, 0, cs(&address).as_ptr()).is_null(),
+            "нулевая сумма должна быть отклонена"
+        );
+        let zero_error = last_error();
+        assert!(!zero_error.is_empty());
+
+        assert!(
+            grin_wallet_send(h, 1_000_000_000_000_000, cs(&address).as_ptr()).is_null(),
+            "сумма больше баланса должна быть отклонена"
+        );
+        // Ошибка может прийти от ноды (get_tip) или от проверки средств —
+        // важно, что это ошибка, а транзакция не создана.
+        let big_error = last_error().to_lowercase();
+        assert!(
+            big_error.contains("fund")
+                || big_error.contains("недостаточно")
+                || big_error.contains("get_tip")
+                || big_error.contains("нода"),
+            "ожидалась понятная ошибка send: {big_error}"
+        );
+
+        // Ни одна из попыток не создала исходящую транзакцию.
+        let txs = take_string(grin_wallet_txs(h)).expect("txs");
+        assert!(
+            txs.contains("\"txs\":[]") || txs.contains("[]"),
+            "транзакции появились после ошибок: {txs}"
+        );
+
+        grin_wallet_destroy(h);
+    }
+}
+
+/// Отмена с невалидным UUID — ошибка, без побочных эффектов.
+#[test]
+fn cancel_rejects_bad_uuid() {
+    unsafe {
+        let dir = unique_dir("cancelguard");
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            cs("http://127.0.0.1:1").as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create: {}", last_error());
+        let _ = take_string(grin_wallet_create_seed(h, cs("pass").as_ptr(), 24, ptr::null()))
+            .expect("create_seed");
+        let _ = take_string(grin_wallet_open(h, cs("pass").as_ptr())).expect("open");
+
+        assert_eq!(
+            grin_wallet_cancel(h, cs("not-a-uuid").as_ptr()),
+            -1,
+            "невалидный UUID должен отклоняться"
+        );
+        let e = last_error();
+        assert!(e.contains("uuid"), "ожидалась ошибка uuid: {e}");
+
+        grin_wallet_destroy(h);
+    }
+}
+
+/// Ошибки не повторяют секреты (seed-фразу, пароль) и не содержат сырой JSON.
+#[test]
+fn errors_do_not_echo_secrets() {
+    unsafe {
+        let dir = unique_dir("secrets");
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            cs("http://127.0.0.1:1").as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create: {}", last_error());
+
+        let seed_marker = "SEKRET-SEED-MARKER";
+        assert!(
+            grin_wallet_create_seed(h, cs("pw").as_ptr(), 24, cs(seed_marker).as_ptr()).is_null(),
+            "невалидная фраза должна отклоняться"
+        );
+        let e = last_error();
+        assert!(!e.contains(seed_marker), "seed-фраза попала в ошибку: {e}");
+        assert!(!e.contains('{') && !e.contains('}'), "сырой JSON в ошибке: {e}");
+
+        let _ = take_string(grin_wallet_create_seed(h, cs("pw").as_ptr(), 24, ptr::null()))
+            .expect("create_seed");
+
+        let pw_marker = "SEKRET-PW-MARKER";
+        assert!(
+            grin_wallet_open(h, cs(pw_marker).as_ptr()).is_null(),
+            "неверный пароль должен отклоняться"
+        );
+        let e = last_error();
+        assert!(!e.contains(pw_marker), "пароль попал в ошибку: {e}");
+        assert!(!e.contains('{') && !e.contains('}'), "сырой JSON в ошибке: {e}");
+
+        grin_wallet_destroy(h);
+    }
+}
