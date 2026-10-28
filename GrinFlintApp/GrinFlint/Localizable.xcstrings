@@ -950,6 +950,866 @@
           }
         }
       }
+    },
+    "Доступно": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available"
+          }
+        }
+      }
+    },
+    "В ожидании": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Awaiting"
+          }
+        }
+      }
+    },
+    "Заблокировано": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Locked"
+          }
+        }
+      }
+    },
+    "Отправлено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent"
+          }
+        }
+      }
+    },
+    "Награда за блок": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Block reward"
+          }
+        }
+      }
+    },
+    "Возвращено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reverted"
+          }
+        }
+      }
+    },
+    "Подтверждено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmed"
+          }
+        }
+      }
+    },
+    "Не подтверждено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unconfirmed"
+          }
+        }
+      }
+    },
+    "Медленно": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slow"
+          }
+        }
+      }
+    },
+    "Стандарт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        }
+      }
+    },
+    "Быстро": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fast"
+          }
+        }
+      }
+    },
+    "~1 час": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~1 hour"
+          }
+        }
+      }
+    },
+    "~10 мин": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~10 min"
+          }
+        }
+      }
+    },
+    "~1 мин": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~1 min"
+          }
+        }
+      }
+    },
+    "Нет контактов": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No contacts"
+          }
+        }
+      }
+    },
+    "Нет транзакций": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No transactions"
+          }
+        }
+      }
+    },
+    "Контрагент": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Counterparty"
+          }
+        }
+      }
+    },
+    "Дата": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date"
+          }
+        }
+      }
+    },
+    "Тип": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        }
+      }
+    },
+    "Сообщение": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message"
+          }
+        }
+      }
+    },
+    "Версия": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        }
+      }
+    },
+    "Бэкенд": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backend"
+          }
+        }
+      }
+    },
+    "Монета": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coin"
+          }
+        }
+      }
+    },
+    "Основа": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Based on"
+          }
+        }
+      }
+    },
+    "Дизайн и UX по мотивам Flint Wallet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design and UX inspired by Flint Wallet"
+          }
+        }
+      }
+    },
+    "В демо-режиме подключение не используется": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection is not used in demo mode"
+          }
+        }
+      }
+    },
+    "floonet-нода; применится при следующем запуске": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "floonet node; applied on next launch"
+          }
+        }
+      }
+    },
+    "Проверить ноду": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check node"
+          }
+        }
+      }
+    },
+    "Нода доступна: сеть %@, genesis %@…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node reachable: %@ network, genesis %@…"
+          }
+        }
+      }
+    },
+    "Загрузить из файла": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load from file"
+          }
+        }
+      }
+    },
+    "Импортировать ответ из файла": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import response from file"
+          }
+        }
+      }
+    },
+    "Не удалось прочитать файл как текст (UTF-8).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the file as UTF-8 text."
+          }
+        }
+      }
+    },
+    "Незавершённый перевод": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unfinished transfer"
+          }
+        }
+      }
+    },
+    "Ждём ответ получателя": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the recipient's response"
+          }
+        }
+      }
+    },
+    "Ответ готов — передайте отправителю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Response ready — pass it to the sender"
+          }
+        }
+      }
+    },
+    "Отправка ждёт ответа получателя": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending, waiting for the recipient"
+          }
+        }
+      }
+    },
+    "Отправка %@ ждёт ответа": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending %@ is waiting for a response"
+          }
+        }
+      }
+    },
+    "Ответ для отправителя готов — передайте его любым способом": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The response for the sender is ready — pass it on any way you like"
+          }
+        }
+      }
+    },
+    "Этап 2 из 3: передайте запрос получателю и вставьте его ответ ниже": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 2 of 3: pass the request to the recipient and paste the response below"
+          }
+        }
+      }
+    },
+    "Этап 2 из 3: передайте запрос получателю и вставьте его ответ ниже.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 2 of 3: pass the request to the recipient and paste the response below."
+          }
+        }
+      }
+    },
+    "Этап 3 из 3: передайте ответ отправителю — он завершит перевод.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 3 of 3: pass the response to the sender — they will complete the transfer."
+          }
+        }
+      }
+    },
+    "Этап 3 из 3: перевод отправлен в сеть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 3 of 3: transfer sent to the network"
+          }
+        }
+      }
+    },
+    "Демо-режим: запрос не уходит в сеть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo mode: the request is not sent to the network"
+          }
+        }
+      }
+    },
+    "Slatepack-запрос": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slatepack request"
+          }
+        }
+      }
+    },
+    "Ответ получателя": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recipient's response"
+          }
+        }
+      }
+    },
+    "Ответный Slatepack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Response Slatepack"
+          }
+        }
+      }
+    },
+    "Поделиться запросом": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share request"
+          }
+        }
+      }
+    },
+    "Поделиться ответом": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share response"
+          }
+        }
+      }
+    },
+    "Готово — ответ передан": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done — response passed on"
+          }
+        }
+      }
+    },
+    "Закрыть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "Отправьте ответный Slatepack отправителю — без этого средства не придут": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send the response Slatepack to the sender — otherwise the funds will not arrive"
+          }
+        }
+      }
+    },
+    "Средства зачислены после подтверждения блока": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funds are credited after block confirmation"
+          }
+        }
+      }
+    },
+    "Ответный Slatepack для отправителя": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Response Slatepack for the sender"
+          }
+        }
+      }
+    },
+    "Подтвердите отправку средств": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm sending funds"
+          }
+        }
+      }
+    },
+    "Подтвердите приём средств": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm receiving funds"
+          }
+        }
+      }
+    },
+    "Создаём кошелёк из seed-фразы…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating wallet from the seed phrase…"
+          }
+        }
+      }
+    },
+    "Кошелёк уже создан — продолжаем открытие…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet already exists — continuing to open…"
+          }
+        }
+      }
+    },
+    "Открываем кошелёк…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opening wallet…"
+          }
+        }
+      }
+    },
+    "Сканируем выходы с ноды — это может занять несколько минут…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scanning outputs from the node — this may take a few minutes…"
+          }
+        }
+      }
+    },
+    "Восстановление можно безопасно прервать и продолжить: кошелёк создаётся один раз, повторная подпись не выполняется.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore can be safely interrupted and continued: the wallet is created once, no re-signing happens."
+          }
+        }
+      }
+    },
+    "Перенос фразы через буфер обмена не предусмотрен: запишите её от руки или в менеджер паролей. Приложение не хранит фразу в открытом виде.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The phrase is not transferred via the clipboard: write it down by hand or store it in a password manager. The app does not keep it in plain text."
+          }
+        }
+      }
+    },
+    "Транзакция не завершена": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaction not completed"
+          }
+        }
+      }
+    },
+    "Вернитесь в GrinFlint и передайте ответный Slatepack — иначе средства останутся заблокированными.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return to GrinFlint and pass the response Slatepack on — otherwise the funds stay locked."
+          }
+        }
+      }
+    },
+    "Есть незавершённый перевод: %@. Завершите его — повторная подпись не создаётся.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is an unfinished transfer: %@. Complete it — no re-signing is performed."
+          }
+        }
+      }
+    },
+    "Самопроверка выполняется…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Self-check is running…"
+          }
+        }
+      }
+    },
+    "Блокчейн-уровень — официальный grin-wallet 5.5.1 через FFI. Сборка не аудирована: не используйте реальные средства.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blockchain layer is the official grin-wallet 5.5.1 via FFI. This build is not audited: do not use real funds."
+          }
+        }
+      }
+    },
+    "GrinFlint — некастодиальный кошелёк Grin. В этой сборке блокчейн-уровень заменён демо-реализацией.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GrinFlint is a non-custodial Grin wallet. In this build the blockchain layer is replaced with a demo implementation."
+          }
+        }
+      }
+    },
+    "демо-режим (MockWalletService)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "demo mode (MockWalletService)"
+          }
+        }
+      }
+    },
+    "grin-wallet недоступен": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "grin-wallet unavailable"
+          }
+        }
+      }
+    },
+    "Не удалось подтвердить личность: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not confirm your identity: %@"
+          }
+        }
+      }
+    },
+    "Подтверждение отменено — действие не выполнено.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmation cancelled — nothing was done."
+          }
+        }
+      }
+    },
+    "Подтверждение недоступно на этом устройстве.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmation is unavailable on this device."
+          }
+        }
+      }
+    },
+    "Ввести код устройства": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter device passcode"
+          }
+        }
+      }
+    },
+    "На устройстве не задан код-пароль: подтвердить личность нельзя. Задайте код-пароль в настройках iOS — без него вход в кошелёк и подпись запрещены.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No device passcode is set, so identity cannot be confirmed. Set a passcode in iOS settings — without it, unlocking and signing are disabled."
+          }
+        }
+      }
+    },
+    "Keychain: пароль защищён Face ID / кодом устройства": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain: password protected by Face ID / device passcode"
+          }
+        }
+      }
+    },
+    "Keychain: пароль перенесён под защиту Face ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain: password migrated to Face ID protection"
+          }
+        }
+      }
+    },
+    "Keychain: код-пароль не задан — защита присутствием недоступна": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain: no device passcode — presence protection unavailable"
+          }
+        }
+      }
+    },
+    "Keychain: перенос под защиту отложен — подтвердите вход": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain: migration postponed — confirm sign-in"
+          }
+        }
+      }
+    },
+    "Keychain: симулятор — защита присутствием недоступна": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain: simulator — presence protection unavailable"
+          }
+        }
+      }
+    },
+    "Keychain: пароль не найден": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain: password not found"
+          }
+        }
+      }
+    },
+    "Адрес ноды некорректен: %@. Пример: http://192.168.1.10:13413": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid node address: %@. Example: http://192.168.1.10:13413"
+          }
+        }
+      }
+    },
+    "127.0.0.1 на iPhone указывает на сам телефон, а не на компьютер с нодой. Укажите LAN-адрес компьютера (например, http://192.168.1.10:13413) или внешний адрес ноды.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "127.0.0.1 on iPhone points to the phone itself, not to the computer running the node. Use the computer's LAN address (e.g. http://192.168.1.10:13413) or an external node address."
+          }
+        }
+      }
+    },
+    "Проверка сети ноды доступна только в сборке с реальным grin-wallet (FFI).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node network check is available only in builds with the real grin-wallet (FFI)."
+          }
+        }
+      }
+    },
+    "Нода недоступна: %@. Проверьте адрес, порт (13413 для testnet, 3413 для mainnet) и что нода запущена.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node unreachable: %@. Check the address, the port (13413 for testnet, 3413 for mainnet) and that the node is running."
+          }
+        }
+      }
+    },
+    "Нода ответила, но её genesis-блок не совпал с ожидаемым. Это другая цепь — подключаться к ней нельзя.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The node responded, but its genesis block does not match. This is a different chain — do not connect."
+          }
+        }
+      }
+    },
+    "Нода работает в сети %@, а кошелёк — в %@. Укажите ноду своей сети: данные и средства другой цепи не подходят.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The node runs on %@ while the wallet runs on %@. Use a node from the wallet's network: data and funds from another chain do not apply."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

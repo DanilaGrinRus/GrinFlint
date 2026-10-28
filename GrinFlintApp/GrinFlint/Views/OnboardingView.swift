@@ -110,8 +110,7 @@ struct CreateWalletView: View {
                     }
                     .buttonStyle(GrinButtonStyle())
 
-                    Text("Перенос фразы через буфер обмена не предусмотрен: запишите её от руки "
-                         + "или в менеджер паролей. Приложение не хранит фразу в открытом виде.")
+                    Text("Перенос фразы через буфер обмена не предусмотрен: запишите её от руки или в менеджер паролей. Приложение не хранит фразу в открытом виде.")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textTertiary)
                         .multilineTextAlignment(.center)
@@ -186,8 +185,7 @@ struct RestoreWalletView: View {
                             .foregroundStyle(Theme.textSecondary)
                             .multilineTextAlignment(.center)
                             .accessibilityIdentifier("restore.stage")
-                        Text("Восстановление можно безопасно прервать и продолжить: "
-                             + "кошелёк создаётся один раз, повторная подпись не выполняется.")
+                        Text("Восстановление можно безопасно прервать и продолжить: кошелёк создаётся один раз, повторная подпись не выполняется.")
                             .font(.system(size: 12))
                             .foregroundStyle(Theme.textTertiary)
                             .multilineTextAlignment(.center)

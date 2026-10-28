@@ -169,6 +169,41 @@ jobs:
             head -5 "$d/Localizable.strings" 2>/dev/null || true
           done
 
+      # Юнит-тесты Keychain и журнала незавершённых переводов.
+      - name: Юнит-тесты (Keychain, журнал операций)
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          XCF=ffi-artifact/GrinWalletFFI.xcframework
+          [ -d "$XCF" ] || XCF=ffi-artifact
+          SIM_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' -path '*sim*' | head -1)
+          HEADERS=$(find "$XCF" -type d -name Headers | head -1)
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone' | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          test -n "$DEVICE" || { echo "симулятор не найден"; exit 1; }
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcodebuild test \
+            -project GrinFlintApp/GrinFlint.xcodeproj \
+            -scheme GrinFlint \
+            -derivedDataPath "$PWD/build" \
+            -destination "platform=iOS Simulator,id=$DEVICE" \
+            -only-testing:GrinFlintTests \
+            -resultBundlePath "$PWD/unit.xcresult" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
+            SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
+            HEADER_SEARCH_PATHS="$PWD/$HEADERS" \
+            OTHER_LDFLAGS="-L$PWD/$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Результаты юнит-тестов (xcresult)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: unit.xcresult
+          if-no-files-found: warn
+          retention-days: 7
+
       # XCUITest: тапы по экранам в симуляторе (демо-сервис, без сети).
       - name: UI-тесты на симуляторе (XCUITest)
         timeout-minutes: 20
