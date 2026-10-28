@@ -91,13 +91,25 @@ actor GrinWalletFFIService: WalletService {
         transactions = t.txs.map(Self.mapTx)
     }
 
-    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
         // Один незавершённый перевод за раз: повторный вызов подписал бы
         // вторую транзакцию и задвоил операцию.
         if let awaiting = pending.awaitingSend {
             throw WalletError.pendingOperationExists(awaiting.stage.title)
         }
-        let nano = Self.nano(amount)
+        // Сумму разбирает общий Rust-контракт: 9 знаков, без усечения и
+        // переполнения. Ошибка возвращается, а не превращается в 0.
+        let parsed: GrinAmountResult
+        do {
+            parsed = try GrinFFI.callStandalone(
+                { grin_wallet_parse_amount(amountText) },
+                as: GrinAmountResult.self
+            )
+        } catch {
+            throw WalletError.invalidAmount
+        }
+        let nano = parsed.nano
+        let amount = Self.grin(nano)
         let dest = destination.trimmingCharacters(in: .whitespaces)
         guard !dest.isEmpty else { throw WalletError.invalidAddress }
         let result: GrinSendResult = try GrinFFI.call({ h in

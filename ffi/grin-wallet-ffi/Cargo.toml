@@ -20,6 +20,7 @@ grin_core = "5.5.1"
 grin_keychain = "5.5.1"
 grin_util = "5.5.1"
 serde = { version = "1", features = ["derive"] }
+flint-transfer-contract = { path = "../transfer-contract" }
 serde_json = "1"
 toml = "0.5"
 uuid = "1"

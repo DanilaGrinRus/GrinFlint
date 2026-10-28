@@ -140,4 +140,10 @@ struct GrinChainGenesis: Decodable {
     let chain: String
     let hash: String
 }
+
+/// Результат точного разбора суммы общим контрактом.
+struct GrinAmountResult: Decodable {
+    let nano: UInt64
+    let display: String
+}
 #endif

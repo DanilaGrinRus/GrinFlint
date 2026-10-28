@@ -67,9 +67,9 @@ final class WalletViewModel {
         }
     }
 
-    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
         do {
-            let proposal = try await service.prepareSend(destination: destination, amount: amount, feeTier: feeTier)
+            let proposal = try await service.prepareSend(destination: destination, amountText: amountText, feeTier: feeTier)
             await syncFromService()
             // Отправка ещё не завершена: получатель должен вернуть Slatepack.
             TxReminders.schedule(id: proposal.txID.uuidString)

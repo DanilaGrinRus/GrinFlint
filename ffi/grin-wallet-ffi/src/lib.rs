@@ -18,6 +18,10 @@ use grin_wallet_libwallet::{
 use grin_core::core::hash::Hashed;
 use grin_core::genesis;
 use grin_core::global::{self, ChainTypes};
+
+/// Общий контракт переводов (тот же исходник, что у desktop, schema 1).
+pub use flint_transfer_contract;
+use flint_transfer_contract::{Direction, NanoGrin, Network, Stage, TransferState};
 use grin_keychain::ExtKeychain;
 use grin_util::secp::key::SecretKey;
 use grin_util::ZeroingString;
@@ -156,15 +160,14 @@ pub extern "C" fn grin_wallet_create(
         })?;
         let api_secret = c_str(api_secret).filter(|s| !s.is_empty());
 
-        let chain_type = match chain.as_str() {
-            // В grin 5.5.2 тестовая сеть называется Testnet (бывш. Floonet)
-            "testnet" | "floonet" => ChainTypes::Testnet,
-            "mainnet" => ChainTypes::Mainnet,
-            other => {
-                return Err(format!(
-                    "неизвестная сеть «{other}»: ожидается \"mainnet\", \"testnet\" или \"floonet\""
-                ))
-            }
+        // Сеть разбирает общий контракт: неизвестная строка — ошибка,
+        // mainnet не выбирается молча.
+        let network = Network::parse(&chain).map_err(|_| {
+            format!("неизвестная сеть «{chain}»: ожидается \"mainnet\", \"testnet\" или \"floonet\"")
+        })?;
+        let chain_type = match network {
+            Network::Testnet => ChainTypes::Testnet,
+            Network::Mainnet => ChainTypes::Mainnet,
         };
         // thread-local — для текущего потока, глобальный — чтобы не паниковать
         // при вызове с другого потока (см. GrinWallet::chain_type).
@@ -632,6 +635,87 @@ pub extern "C" fn grin_wallet_chain_genesis(chain: *const c_char) -> *mut c_char
         }
         Err(_) => {
             set_error(panic_error("grin_wallet_chain_genesis"));
+            fail()
+        }
+    }
+}
+// ---------- общий контракт переводов (flint-transfer-contract) ----------
+
+fn now_unix() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// Точный разбор суммы по общим правилам контракта: до 9 знаков после точки,
+/// без переполнения и без молчаливого усечения.
+/// Возвращает {"nano": <u64>, "display": "1.000000001"}.
+#[no_mangle]
+pub extern "C" fn grin_wallet_parse_amount(text: *const c_char) -> *mut c_char {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
+        let text = c_str(text).ok_or("amount is null")?;
+        let nano = NanoGrin::parse(&text).map_err(|e| format!("сумма: {e}"))?;
+        Ok(json!({ "nano": nano.0, "display": nano.display() }))
+    });
+    match result {
+        Ok(Ok(v)) => ok_json(v),
+        Ok(Err(e)) => {
+            set_error(e);
+            fail()
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_parse_amount"));
+            fail()
+        }
+    }
+}
+
+/// Состояние перевода по общим правилам: этап, next_action и допустимые
+/// действия. `wallet_state` — состояние журнала (prepared, response_received,
+/// posted, confirmed, …); неизвестное состояние считается recoverable.
+#[no_mangle]
+pub extern "C" fn grin_wallet_transfer_state(
+    direction: *const c_char,
+    wallet_state: *const c_char,
+    amount_nano: u64,
+    fee_nano: u64,
+    peer: *const c_char,
+    slate_id: *const c_char,
+    last_error: *const c_char,
+) -> *mut c_char {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
+        let direction = c_str(direction).ok_or("direction is null")?;
+        let wallet_state = c_str(wallet_state).ok_or("wallet_state is null")?;
+        let slate_id = c_str(slate_id).ok_or("slate_id is null")?;
+        let peer = c_str(peer).unwrap_or_default();
+        let direction = match direction.as_str() {
+            "send" => Direction::Send,
+            "receive" => Direction::Receive,
+            other => return Err(format!("неизвестное направление «{other}»")),
+        };
+        let stage = Stage::from_wallet_state(direction.as_str(), &wallet_state);
+        let state = TransferState::new(
+            slate_id,
+            direction,
+            stage,
+            NanoGrin(amount_nano),
+            NanoGrin(fee_nano),
+            peer,
+            c_str(last_error),
+            now_unix(),
+        );
+        state.validate().map_err(|e| format!("состояние: {e}"))?;
+        serde_json::to_value(&state).map_err(|e| format!("json: {e}"))
+    });
+    match result {
+        Ok(Ok(v)) => ok_json(v),
+        Ok(Err(e)) => {
+            set_error(e);
+            fail()
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_transfer_state"));
             fail()
         }
     }

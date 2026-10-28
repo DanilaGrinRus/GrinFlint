@@ -33,7 +33,7 @@ protocol WalletService: AnyObject {
 
     /// Создать транзакцию на отправку и получить Slatepack для контрагента.
     /// `destination` — Slatepack-адрес получателя (grin1…).
-    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal
+    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal
 
     /// Принять Slatepack контрагента и зачислить средства.
     func receive(slatepack: String) async throws -> TransactionRecord
@@ -100,7 +100,7 @@ final class UnavailableWalletService: WalletService {
 
     func refresh() async throws { try bail() }
 
-    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
         try bail()
     }
 
@@ -207,9 +207,12 @@ final class MockWalletService: WalletService {
         }
     }
 
-    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
         if let awaiting = pendingOperation, awaiting.kind == .send, awaiting.stage == .awaitingResponse {
             throw WalletError.pendingOperationExists(awaiting.stage.title)
+        }
+        guard let amount = GrinFormat.parse(amountText) else {
+            throw WalletError.invalidAmount
         }
         let fee = feeTier.fee
         let dest = destination.trimmingCharacters(in: .whitespaces)

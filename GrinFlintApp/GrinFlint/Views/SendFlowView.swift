@@ -214,7 +214,7 @@ struct SendFlowView: View {
         do {
             proposal = try await viewModel.prepareSend(
                 destination: trimmedDestination,
-                amount: amount,
+                amountText: amountText,
                 feeTier: feeTier
             )
         } catch let error as WalletError {

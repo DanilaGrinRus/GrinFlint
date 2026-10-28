@@ -1732,6 +1732,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "flint-transfer-contract"
+version = "1.0.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "fluent"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2090,6 +2097,7 @@ checksum = "9985c9503b412198aa4197559e9a318524ebc4519c229bfa05a535828c950b9d"
 name = "grin-wallet-ffi"
 version = "0.1.0"
 dependencies = [
+ "flint-transfer-contract",
  "grin_core",
  "grin_keychain",
  "grin_util",

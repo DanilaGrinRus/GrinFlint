@@ -312,3 +312,71 @@ fn chain_genesis_is_strict() {
         assert!(p.is_null(), "NULL-сеть должна вернуть NULL");
     }
 }
+/// Суммы разбираются точно: 9 знаков, без переполнения и усечения.
+#[test]
+fn amount_parse_is_exact() {
+    unsafe {
+        let p = grin_wallet_parse_amount(cs("1.000000001").as_ptr());
+        assert!(!p.is_null(), "parse_amount: {}", last_error());
+        let json = take_string(p).expect("ответ NULL");
+        assert!(json.contains("\"nano\":1000000001"), "{json}");
+
+        let p = grin_wallet_parse_amount(cs("0.000000001").as_ptr());
+        assert!(!p.is_null(), "parse_amount min: {}", last_error());
+        assert!(take_string(p).unwrap().contains("\"nano\":1"));
+
+        assert!(grin_wallet_parse_amount(cs("1.0000000001").as_ptr()).is_null());
+        assert!(grin_wallet_parse_amount(cs("-1").as_ptr()).is_null());
+        assert!(grin_wallet_parse_amount(cs("").as_ptr()).is_null());
+        assert!(grin_wallet_parse_amount(ptr::null()).is_null());
+    }
+}
+
+/// Состояние перевода: posted ≠ confirmed, отмена запрещена после публикации.
+#[test]
+fn transfer_state_follows_shared_contract() {
+    unsafe {
+        let p = grin_wallet_transfer_state(
+            cs("send").as_ptr(),
+            cs("posted").as_ptr(),
+            100_000_000,
+            23_000_000,
+            cs("tgrin1peer").as_ptr(),
+            cs("id-posted").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!p.is_null(), "transfer_state: {}", last_error());
+        let json = take_string(p).expect("ответ NULL");
+        assert!(json.contains("\"stage\":\"posted\""), "{json}");
+        assert!(json.contains("\"next_action\":\"wait\""), "{json}");
+        assert!(json.contains("\"can_cancel\":false"), "{json}");
+        assert!(!json.contains("seed"), "{json}");
+    }
+}
+
+/// Те же fixtures, что у desktop: схема и флаги совпадают.
+#[test]
+fn contract_fixtures_are_shared() {
+    use grin_wallet_ffi::flint_transfer_contract::{Direction, NextAction, Stage, TransferState};
+
+    let send: TransferState = serde_json::from_str(include_str!(
+        "../../transfer-contract/fixtures/send_posted.json"
+    ))
+    .expect("send_posted.json");
+    assert_eq!(send.schema, 1);
+    assert_eq!(send.stage, Stage::Posted);
+    assert_eq!(send.direction, Direction::Send);
+    assert_eq!(send.next_action, NextAction::Wait);
+    assert!(!send.can_cancel);
+    send.validate().expect("fixture валиден");
+
+    let recv: TransferState = serde_json::from_str(include_str!(
+        "../../transfer-contract/fixtures/receive_response_ready.json"
+    ))
+    .expect("receive_response_ready.json");
+    assert_eq!(recv.stage, Stage::ResponseReady);
+    assert_eq!(recv.direction, Direction::Receive);
+    assert!(recv.can_export_response);
+    assert!(recv.can_finalize);
+    recv.validate().expect("fixture валиден");
+}
