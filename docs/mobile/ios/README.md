@@ -30,6 +30,10 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
   приём — показ ответного Slatepack (run 40588800281, сборка зелёная).
   На устройстве/симуляторе флоу не проверялся.
 - Смоук-тест lifecycle (оффлайн) — зелёный.
+- **Приложение реально запускается на симуляторе в CI** (2026-10-28):
+  шаг «Смоук на симуляторе» в `ios.yml` запускает app с `-SimSmoke` и
+  проверяет Keychain → FFI → seed → open → refresh → восстановление;
+  результат `ok: true` (run 40607181039).
 - **E2E roundtrip tGRIN против живой floonet-ноды** — проверен вживую
   локально (2026-10-27, 50 tGRIN) и вынесен в CI (`floonet-e2e.yml`);
   сумма в CI 1 tGRIN (`GRIN_E2E_AMOUNT_NGRIN`), иначе комиссия не
@@ -49,7 +53,7 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 | Кеш цепи | ключ `testnet-chain-<год-W<номер>`; греет `floonet-chain-cache.yml` (вс 20:27 UTC), E2E только restore |
 | E2E | `floonet-e2e.yml` (dispatch + cron пн 04:17 UTC) |
 | Секреты ноды | `.api_secret` и `.foreign_api_secret` у кошелька должны **совпадать** (workflow уравнивает их при старте; иначе restore/refresh кошелька получает 401 и пустой баланс) |
-| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс после двух прогонов 2026-10-28 — 48.8805 tGRIN, один прогон с возвратом B→A стоит ~0.05 tGRIN (сумма возвращается); копия данных кошелька — `C:\DHW\mobile\grinflint-backups\2026-10-28\` |
+| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс после трёх прогонов 2026-10-28 — 48.832 tGRIN, один прогон с возвратом B→A стоит ~0.05 tGRIN (сумма возвращается); копия данных кошелька — `C:\DHW\mobile\grinflint-backups\2026-10-28\` |
 | Нода по умолчанию | floonet-сборка: `http://127.0.0.1:13413` (`WalletFactory.floonetNodeURL`); mainnet-дефолт `https://grinnode.live:3413` — только для Фазы 4 |
 
 ## Локальная нода пользователя (для ручных прогонов)
