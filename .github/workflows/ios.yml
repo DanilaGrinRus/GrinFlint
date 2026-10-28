@@ -262,6 +262,15 @@ jobs:
           shot settings -walletExists YES -simDemo -simOpen settings
           shot auth-prompt -requireBiometrics YES
           xcrun simctl terminate "$DEVICE" com.dan.grinflint >/dev/null 2>&1 || true
+
+          # --- Проверка URL scheme grinslate:// ---
+          xcrun simctl launch "$DEVICE" com.dan.grinflint -walletExists YES -simDemo >/dev/null
+          sleep 3
+          xcrun simctl openurl "$DEVICE" "grinslate://receive?text=BEGINSLATEPACK.test"
+          sleep 4
+          xcrun simctl io "$DEVICE" screenshot "$PWD/screenshots/receive-from-url.png"
+          echo "снят receive-from-url.png"
+          xcrun simctl terminate "$DEVICE" com.dan.grinflint >/dev/null 2>&1 || true
           ls -la "$PWD/screenshots"
           echo "--- паники/ошибки приложения в логе симулятора ---"
           xcrun simctl spawn "$DEVICE" log show --last 10m --style compact \

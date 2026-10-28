@@ -105,4 +105,24 @@ final class NavigationUITests: XCTestCase {
             "на экране приёма нет адреса"
         )
     }
+
+    /// Ссылка `grinslate://` открывает лист приёма с подставленным Slatepack.
+    func testIncomingSlatepackSheet() {
+        app.terminate()
+        app.launchArguments = [
+            "-walletExists", "YES", "-simDemo",
+            "-simIncoming", "BEGINSLATEPACK.test"
+        ]
+        app.launch()
+        XCTAssertTrue(
+            app.navigationBars["Получить GRIN"].waitForExistence(timeout: 20),
+            "лист приёма по ссылке не открылся"
+        )
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "нет поля для Slatepack")
+        XCTAssertTrue(
+            (editor.value as? String)?.contains("BEGINSLATEPACK") == true,
+            "в поле нет текста из ссылки"
+        )
+    }
 }

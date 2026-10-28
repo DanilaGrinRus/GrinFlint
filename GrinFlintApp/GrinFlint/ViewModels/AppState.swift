@@ -37,6 +37,22 @@ final class AppState {
         service.unavailableReason
     }
 
+    /// Разобрать ссылку `grinslate://receive?text=<slatepack>`.
+    /// Возвращает текст Slatepack или nil, если ссылка не наша.
+    static func slatepack(from url: URL) -> String? {
+        guard url.scheme?.lowercased() == "grinslate" else { return nil }
+        if let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+           let text = items.first(where: { $0.name == "text" || $0.name == "data" })?.value,
+           !text.isEmpty {
+            return text
+        }
+        // grinslate://<данные> — если в host не служебное слово.
+        if let host = url.host, host.lowercased() != "receive", !host.isEmpty {
+            return host.removingPercentEncoding ?? host
+        }
+        return nil
+    }
+
     // MARK: Онбординг
 
     func beginCreateWallet() {

@@ -4,7 +4,14 @@ import SwiftUI
 struct ContentView: View {
     @State private var appState = AppState()
     @State private var lock = AppLockManager()
+    @State private var incoming: IncomingSlatepack?
     @Environment(\.scenePhase) private var scenePhase
+
+    /// Slatepack из ссылки `grinslate://` (лист приёма поверх основного UI).
+    private struct IncomingSlatepack: Identifiable {
+        let id = UUID()
+        let text: String
+    }
 
     init() {
         let appearance = UITabBarAppearance()
@@ -28,12 +35,29 @@ struct ContentView: View {
                 } else {
                     tabView
                         .environment(viewModel)
+                        .sheet(item: $incoming) { item in
+                            NavigationStack {
+                                ReceiveView(initialSlatepack: item.text)
+                            }
+                            .environment(viewModel)
+                        }
                 }
             } else {
                 OnboardingView(appState: appState)
             }
         }
         .preferredColorScheme(.dark)
+        .onOpenURL { url in
+            if let text = AppState.slatepack(from: url) {
+                incoming = IncomingSlatepack(text: text)
+            }
+        }
+        .task {
+            // Для XCUITest: `-simIncoming <slatepack>` открывает тот же лист.
+            if let text = simIncomingArgument {
+                incoming = IncomingSlatepack(text: text)
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
@@ -87,6 +111,15 @@ struct ContentView: View {
     private var simOpenTarget: String? {
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: "-simOpen"), args.count > index + 1 else {
+            return nil
+        }
+        return args[index + 1]
+    }
+
+    /// Для XCUITest: `-simIncoming <slatepack>` открывает лист приёма.
+    private var simIncomingArgument: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-simIncoming"), args.count > index + 1 else {
             return nil
         }
         return args[index + 1]

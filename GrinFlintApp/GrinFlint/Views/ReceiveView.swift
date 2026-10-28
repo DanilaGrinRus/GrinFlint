@@ -5,10 +5,15 @@ struct ReceiveView: View {
     @Environment(WalletViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var slatepackInput = ""
+    @State private var slatepackInput: String
     @State private var receivedTx: TransactionRecord?
     @State private var isWorking = false
     @State private var validationError: String?
+
+    /// `initialSlatepack` — текст из ссылки `grinslate://` или из буфера.
+    init(initialSlatepack: String = "") {
+        _slatepackInput = State(initialValue: initialSlatepack)
+    }
 
     var body: some View {
         ScrollView {
