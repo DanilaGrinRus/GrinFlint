@@ -233,5 +233,37 @@ final class NavigationUITests: XCTestCase {
             "английская локализация не подхватилась"
         )
         XCTAssertTrue(app.tabBars.buttons["Portfolio"].exists, "вкладки не переведены")
+
+        // Строка с интерполяцией: формат-ключ должен совпасть с каталогом.
+        app.buttons["portfolio.send"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Send GRIN"].waitForExistence(timeout: 10),
+            "экран отправки не переведён"
+        )
+        XCTAssertTrue(
+            app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Available:'"))
+                .firstMatch.waitForExistence(timeout: 10),
+            "интерполированная строка «Доступно: …» не переведена"
+        )
+    }
+
+    /// Сканер QR: в симуляторе камеры нет — показываем понятное сообщение.
+    func testScannerFallback() {
+        waitPortfolio()
+        app.buttons["portfolio.send"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Отправить GRIN"].waitForExistence(timeout: 10),
+            "экран отправки не открылся"
+        )
+        app.buttons["send.scan"].tap()
+        XCTAssertTrue(
+            app.staticTexts["scanner.unavailable"].waitForExistence(timeout: 10),
+            "нет сообщения о недоступной камере"
+        )
+        app.buttons["Отмена"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Отправить GRIN"].waitForExistence(timeout: 10),
+            "сканирование не закрылось"
+        )
     }
 }

@@ -37,6 +37,8 @@
 		<string>ru</string>
 		<string>en</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Камера нужна, чтобы сканировать QR-код адреса или Slatepack.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

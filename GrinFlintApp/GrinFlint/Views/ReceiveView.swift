@@ -10,6 +10,7 @@ struct ReceiveView: View {
     @State private var isWorking = false
     @State private var validationError: String?
     @State private var qrImage: UIImage?
+    @State private var isScanning = false
 
     /// `initialSlatepack` — текст из ссылки `grinslate://` или из буфера.
     init(initialSlatepack: String = "") {
@@ -41,6 +42,22 @@ struct ReceiveView: View {
         .task(id: viewModel.slatepackAddress) {
             // QR пересчитывается только при смене адреса.
             qrImage = QRCode.image(for: viewModel.slatepackAddress)
+        }
+        .sheet(isPresented: $isScanning) {
+            NavigationStack {
+                QRScannerView { code in
+                    slatepackInput = code
+                    isScanning = false
+                }
+                .ignoresSafeArea()
+                .navigationTitle("Сканировать QR")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Отмена") { isScanning = false }
+                    }
+                }
+            }
         }
     }
 
@@ -88,6 +105,17 @@ struct ReceiveView: View {
                         .padding(8)
                         .background(Color.black.opacity(0.3))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                    Button {
+                        isScanning = true
+                    } label: {
+                        Label("Сканировать QR-код", systemImage: "qrcode.viewfinder")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("receive.scan")
 
                     Button {
                         Task { await accept() }

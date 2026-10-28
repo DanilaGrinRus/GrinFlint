@@ -830,6 +830,126 @@
           }
         }
       }
+    },
+    "Требовать %@ при входе": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Require %@ to open"
+          }
+        }
+      }
+    },
+    "Разблокировать через %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with %@"
+          }
+        }
+      }
+    },
+    "Слов: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Words: %lld"
+          }
+        }
+      }
+    },
+    "Доступно: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available: %@"
+          }
+        }
+      }
+    },
+    "Неизвестный экран: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown screen: %@"
+          }
+        }
+      }
+    },
+    "Кошелёк не открылся: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet failed to open: %@"
+          }
+        }
+      }
+    },
+    "Недостаточно средств: нужно %@, доступно %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insufficient funds: need %@, available %@."
+          }
+        }
+      }
+    },
+    "Кошелёк недоступен: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet unavailable: %@"
+          }
+        }
+      }
+    },
+    "Не реализовано в демо-режиме: %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not implemented in demo mode: %@."
+          }
+        }
+      }
+    },
+    "Сканировать QR": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan QR"
+          }
+        }
+      }
+    },
+    "Сканировать QR-код": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan QR code"
+          }
+        }
+      }
+    },
+    "Камера недоступна — вставьте текст вручную": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera unavailable — paste the text manually"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -112,7 +112,9 @@ enum WalletError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .insufficientFunds(let needed, let available):
-            return "Недостаточно средств: нужно \(GrinFormat.grin(needed)), доступно \(GrinFormat.grin(available))."
+            return String(
+                localized: "Недостаточно средств: нужно \(GrinFormat.grin(needed)), доступно \(GrinFormat.grin(available))."
+            )
         case .invalidAmount:
             return "Некорректная сумма."
         case .invalidSlatepack:
@@ -122,9 +124,9 @@ enum WalletError: LocalizedError {
         case .invalidMnemonic:
             return "Seed-фраза должна содержать 12 или 24 слова, разделённые пробелами."
         case .unavailable(let reason):
-            return "Кошелёк недоступен: \(reason)"
+            return String(localized: "Кошелёк недоступен: \(reason)")
         case .notImplemented(let what):
-            return "Не реализовано в демо-режиме: \(what)."
+            return String(localized: "Не реализовано в демо-режиме: \(what).")
         }
     }
 }

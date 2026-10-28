@@ -107,7 +107,9 @@ final class AppState {
             try await service.open()
         } catch {
             // Раньше ошибка открытия терялась: экран показывал нули без причины.
-            viewModel?.reportError("Кошелёк не открылся: \(error.localizedDescription)")
+            viewModel?.reportError(
+                String(localized: "Кошелёк не открылся: \(error.localizedDescription)")
+            )
             return
         }
         await viewModel?.syncFromService()

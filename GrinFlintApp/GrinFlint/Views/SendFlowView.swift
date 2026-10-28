@@ -12,6 +12,7 @@ struct SendFlowView: View {
     @State private var proposal: SendProposal?
     @State private var isWorking = false
     @State private var sendError: String?
+    @State private var isScanning = false
 
     private var parsedAmount: Decimal? { GrinFormat.parse(amountText) }
     private var trimmedDestination: String { destination.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -59,6 +60,26 @@ struct SendFlowView: View {
         } message: {
             Text(sendError ?? "")
         }
+        .sheet(isPresented: $isScanning) {
+            scannerSheet
+        }
+    }
+
+    private var scannerSheet: some View {
+        NavigationStack {
+            QRScannerView { code in
+                destination = code
+                isScanning = false
+            }
+            .ignoresSafeArea()
+            .navigationTitle("Сканировать QR")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { isScanning = false }
+                }
+            }
+        }
     }
 
     private var destinationSection: some View {
@@ -67,13 +88,24 @@ struct SendFlowView: View {
                 Text("Адрес получателя (Slatepack)")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
-                TextField("grin1…", text: $destination)
-                    .font(Theme.mono(14))
-                    .foregroundStyle(Theme.textPrimary)
-                    .tint(Theme.accent)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .accessibilityIdentifier("send.destination")
+                HStack(spacing: 10) {
+                    TextField("grin1…", text: $destination)
+                        .font(Theme.mono(14))
+                        .foregroundStyle(Theme.textPrimary)
+                        .tint(Theme.accent)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .accessibilityIdentifier("send.destination")
+                    Button {
+                        isScanning = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("send.scan")
+                }
                 if !addressBook.contacts.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
