@@ -32,6 +32,11 @@ final class AppState {
         viewModel?.isDemoMode ?? true
     }
 
+    /// Причина, по которой реальный сервис не поднялся (nil — всё в порядке).
+    var serviceUnavailable: String? {
+        service.unavailableReason
+    }
+
     // MARK: Онбординг
 
     func beginCreateWallet() {

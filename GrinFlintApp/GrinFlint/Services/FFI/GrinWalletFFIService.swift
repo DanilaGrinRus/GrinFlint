@@ -142,9 +142,13 @@ actor GrinWalletFFIService: WalletService {
     }
 
     private static func mapTx(_ t: GrinTxItem) -> TransactionRecord {
-        let type: TxType = t.type.lowercased().contains("received") ? .received
-            : (t.type.lowercased().contains("coinbase") ? .coinbase : .sent)
-        let status: TxStatus = t.confirmed ? .confirmed : .unconfirmed
+        let lowered = t.type.lowercased()
+        let type: TxType = lowered.contains("received") ? .received
+            : (lowered.contains("coinbase") ? .coinbase : .sent)
+        // Reorg/отмена: grin-wallet помечает такую транзакцию Reverted или
+        // Cancelled — показываем отдельный статус, а не «не подтверждено».
+        let reverted = lowered.contains("reverted") || lowered.contains("cancelled")
+        let status: TxStatus = reverted ? .reverted : (t.confirmed ? .confirmed : .unconfirmed)
         let amount = type == .sent ? -grin(t.amount) : grin(t.amount)
         let formatter = ISO8601DateFormatter()
         return TransactionRecord(

@@ -47,6 +47,10 @@ protocol WalletService: AnyObject {
     /// true — демо-реализация без сети (MockWalletService).
     var isDemo: Bool { get }
 
+    /// Причина, по которой реальный сервис не поднялся (nil — всё в порядке).
+    /// Нужен, чтобы показать экран ошибки вместо демо-баланса.
+    var unavailableReason: String? { get }
+
     /// Завершить отправку: принять ответный Slatepack получателя и отправить
     /// финальную транзакцию в сеть. В демо — просто подтверждает запись.
     func finalize(slatepackResponse: String) async throws
@@ -55,6 +59,48 @@ protocol WalletService: AnyObject {
 extension WalletService {
     var backendName: String { "демо-режим (MockWalletService)" }
     var isDemo: Bool { true }
+    var unavailableReason: String? { nil }
+}
+
+/// Заглушка, когда grin-wallet не поднялся: любая операция возвращает ошибку
+/// с причиной. Раньше в этом случае молча включался демо-режим с фальшивым
+/// балансом — для кошелька это недопустимо.
+final class UnavailableWalletService: WalletService {
+    let reason: String
+
+    let balance = Balance.zero
+    let transactions: [TransactionRecord] = []
+    let slatepackAddress = ""
+
+    nonisolated var backendName: String { "grin-wallet недоступен" }
+    nonisolated var isDemo: Bool { false }
+    var unavailableReason: String? { reason }
+
+    init(reason: String) {
+        self.reason = reason
+    }
+
+    private func bail() throws -> Never {
+        throw WalletError.unavailable(reason)
+    }
+
+    func open() async throws { try bail() }
+
+    func createWallet(mnemonicLength: Int) async throws -> String { try bail() }
+
+    func restore(mnemonic: String) async throws { try bail() }
+
+    func refresh() async throws { try bail() }
+
+    func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+        try bail()
+    }
+
+    func receive(slatepack: String) async throws -> TransactionRecord { try bail() }
+
+    func exportSlatepack(txID: UUID) async -> String? { nil }
+
+    func finalize(slatepackResponse: String) async throws { try bail() }
 }
 
 /// Демо-реализация: всё состояние в памяти, транзакции не уходят в сеть.

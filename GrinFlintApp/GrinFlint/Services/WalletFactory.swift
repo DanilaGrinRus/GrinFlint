@@ -59,9 +59,9 @@ enum WalletFactory {
             )
             return service
         } catch {
-            // Не должно происходить; валимся в демо, чтобы UI остался живым.
-            assertionFailure("GrinWalletFFIService init failed: \(error)")
-            return MockWalletService()
+            // Раньше здесь молча включался демо-режим с фальшивым балансом —
+            // для кошелька это опасно: пользователь видел «деньги», которых нет.
+            return UnavailableWalletService(reason: error.localizedDescription)
         }
         #else
         return MockWalletService()

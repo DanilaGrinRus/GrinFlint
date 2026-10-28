@@ -96,8 +96,10 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 |---|---|
 | `GrinFlintApp/GrinFlint.xcodeproj` | Xcode-проект; синхронизированные группы — **новые .swift подхватываются автоматически**, pbxproj не править |
 | `GrinFlintApp/GrinFlint/Theme.swift` | Все цвета/радиусы/шрифты (токены Flint) |
-| `GrinFlintApp/GrinFlint/Views/` | Экраны: Portfolio, SendFlow, Receive, Transactions, Settings, Onboarding, LockScreen |
-| `GrinFlintApp/GrinFlint/Services/` | `WalletService` (протокол), `MockWalletService` (демо), `WalletFactory`, `KeychainStore`, `BiometricAuth`, `SlatepackCodec`, `FFI/GrinWalletFFIService` (под флагом `GRINFFI`) |
+| `GrinFlintApp/GrinFlint/SimSmoke.swift` | Самопроверка для CI: запуск с `-SimSmoke` прогоняет Keychain → FFI → seed → open → refresh → восстановление, пишет `Documents/sim-smoke.json` |
+| `GrinFlintApp/SimulatorEntitlements.plist` | Entitlements для ad-hoc подписи симуляторной сборки (без подписи Keychain даёт `-34018`) |
+| `GrinFlintApp/GrinFlint/Views/` | Экраны: Portfolio, SendFlow, Receive, Transactions, Settings, Onboarding, LockScreen, StartupError |
+| `GrinFlintApp/GrinFlint/Services/` | `WalletService` (протокол) + `UnavailableWalletService`, `MockWalletService` (демо), `WalletFactory`, `KeychainStore`, `BiometricAuth`, `SlatepackCodec`, `TxReminders` (локальные напоминания), `FFI/GrinWalletFFIService` (под флагом `GRINFFI`) |
 | `GrinFlintApp/GrinFlint/ViewModels/` | `AppState`, `WalletViewModel`, `AppLockManager` |
 | `ffi/grin-wallet-ffi/` | Rust-крейт: C-API над grin-wallet 5.5.1 (`staticlib` + `rlib`), заголовок `ffi/include/grin_wallet_ffi.h`, тесты |
 | `ffi/grin-wallet-ffi/tests/roundtrip.rs` | Смоук-тест lifecycle (оффлайн, macOS-раннер) |
@@ -148,6 +150,10 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   (`wallet_lifecycle_offline`) и 12 слов (`restore_from_12_words`) дают тот
   же slatepack-адрес. Локально на Windows: `cargo test --test roundtrip` —
   **2 passed** (2026-10-28).
+- **Приложение реально запускается на симуляторе в CI** (2026-10-28): шаг
+  «Смоук на симуляторе» в `ios.yml` ставит app, запускает с `-SimSmoke` и
+  требует `ok: true` — Keychain → FFI → seed → open → refresh → восстановление
+  из фразы со сверкой адреса. Навигация по экранам не автоматизирована.
 - UI подключён к живому FFI (сборка с `GRINFFI`): `WalletFactory` отдаёт
   `GrinWalletFFIService`, у отправки появился шаг завершения ответным
   Slatepack, приём показывает ответный Slatepack, настройки честно
@@ -194,6 +200,9 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   (≈20 мин; cargo check ~1 мин, XCFramework ~15 мин, приложение ~1 мин).
 - **FFI-изменение**: то же + смоук-тест в CI. Локально: cargo из %TEMP%
   (см. «Ловушки»), `cargo test --test roundtrip`.
+- **Проверка на симуляторе**: шаг «Смоук на симуляторе» в `ios.yml`
+  (аргумент `-SimSmoke`, результат — `Documents/sim-smoke.json` в контейнере
+  приложения). Локально без Xcode не запустить, только CI.
 - **Запустить E2E в CI**: `gh workflow run floonet-e2e.yml` (dispatch) или
   ждать cron (пн 04:17 UTC). Первичный синк ноды с нуля — долго (было >100
   мин), поэтому цепь кеширует отдельный workflow `floonet-chain-cache.yml`
@@ -217,6 +226,8 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 
 - `docs/mobile/ios/roadmap.md` — фазы, критерии выхода, статусы (источник
   правды по плану).
+- `docs/mobile/ios/security-audit.md` — что проверено по секретам/логам,
+  найденные дефекты и остаточные риски.
 - `docs/mobile/ios/architecture.md`, `docs/mobile/ios/grin-wallet-integration.md`,
   `docs/mobile/ios/README.md`.
 

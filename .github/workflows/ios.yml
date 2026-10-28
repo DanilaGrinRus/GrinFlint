@@ -149,7 +149,6 @@ jobs:
             -scheme GrinFlint \
             -derivedDataPath "$PWD/build" \
             -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO \
             SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
             SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
             HEADER_SEARCH_PATHS="$PWD/$HEADERS" \
@@ -168,16 +167,25 @@ jobs:
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone' | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
           test -n "$DEVICE" || { echo "доступный симулятор не найден"; exit 1; }
           echo "device: $DEVICE"
-          # Keychain в симуляторе требует подписанное приложение: сборка идёт
-          # с CODE_SIGNING_ALLOWED=NO, поэтому подписываем ad-hoc сами.
-          # Без этого SecItemAdd возвращает -34018 (errSecMissingEntitlement).
-          ENT="$PWD/GrinFlintApp/SimulatorEntitlements.plist"
-          codesign --force --sign - --entitlements "$ENT" "$APP"
-          codesign --verify --verbose=2 "$APP"
+          # Keychain в симуляторе работает только у подписанного приложения.
+          # Штатная сборка Xcode для симулятора подписывает ad-hoc сама;
+          # если подписи нет — подписываем локально перед установкой.
+          if codesign -dv "$APP" >/dev/null 2>&1; then
+            echo "подпись есть:"; codesign -dv "$APP" 2>&1 | head -5
+          else
+            echo "подписи нет — подписываем ad-hoc"
+            codesign --force --sign - --entitlements "$PWD/GrinFlintApp/SimulatorEntitlements.plist" "$APP"
+            codesign -dv "$APP" 2>&1 | head -5
+          fi
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl install "$DEVICE" "$APP"
-          xcrun simctl launch "$DEVICE" com.dan.grinflint -SimSmoke
+          if ! xcrun simctl launch "$DEVICE" com.dan.grinflint -SimSmoke; then
+            echo "launch не удался; хвост лога симулятора:"
+            xcrun simctl spawn "$DEVICE" log show --last 3m --style compact \
+              --predicate 'process == "SpringBoard" OR process == "GrinFlint"' | tail -120 || true
+            exit 1
+          fi
           DATA=$(xcrun simctl get_app_container "$DEVICE" com.dan.grinflint data)
           OUT="$DATA/Documents/sim-smoke.json"
           for _ in $(seq 1 90); do

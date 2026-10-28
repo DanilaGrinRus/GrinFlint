@@ -16,7 +16,10 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if let viewModel = appState.viewModel {
+            if let reason = appState.serviceUnavailable {
+                // Реальный сервис не поднялся: показываем причину, а не демо.
+                StartupErrorView(reason: reason)
+            } else if let viewModel = appState.viewModel {
                 tabView
                     .environment(viewModel)
             } else {

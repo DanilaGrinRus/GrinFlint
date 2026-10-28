@@ -11,12 +11,15 @@ enum TxType: String, Codable {
 enum TxStatus: String, Codable {
     case unconfirmed
     case confirmed
+    /// Транзакция откатилась (reorg) или отменена — средства возвращены.
+    case reverted
     case failed
 
     var title: String {
         switch self {
         case .unconfirmed: return "Не подтверждено"
         case .confirmed: return "Подтверждено"
+        case .reverted: return "Возвращено"
         case .failed: return "Ошибка"
         }
     }
@@ -103,6 +106,7 @@ enum WalletError: LocalizedError {
     case invalidSlatepack
     case invalidAddress
     case invalidMnemonic
+    case unavailable(String)
     case notImplemented(String)
 
     var errorDescription: String? {
@@ -117,6 +121,8 @@ enum WalletError: LocalizedError {
             return "Укажите Slatepack-адрес получателя (grin1…)."
         case .invalidMnemonic:
             return "Seed-фраза должна содержать 12 или 24 слова, разделённые пробелами."
+        case .unavailable(let reason):
+            return "Кошелёк недоступен: \(reason)"
         case .notImplemented(let what):
             return "Не реализовано в демо-режиме: \(what)."
         }

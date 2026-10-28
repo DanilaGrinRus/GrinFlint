@@ -74,6 +74,7 @@ struct TxRow: View {
         switch tx.status {
         case .confirmed: return Theme.textTertiary
         case .unconfirmed: return Theme.warning
+        case .reverted: return Theme.warning
         case .failed: return Theme.negative
         }
     }

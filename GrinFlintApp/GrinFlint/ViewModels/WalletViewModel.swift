@@ -15,11 +15,14 @@ final class WalletViewModel {
     let isDemoMode: Bool
     /// Имя блокчейн-бэкенда для экрана настроек.
     let backendName: String
+    /// Причина недоступности реального сервиса (nil — всё в порядке).
+    let unavailableReason: String?
 
     init(service: WalletService = MockWalletService()) {
         self.service = service
         self.isDemoMode = service.isDemo
         self.backendName = service.backendName
+        self.unavailableReason = service.unavailableReason
     }
 
     /// Загрузить состояние из сервиса (вызывать после open()/refresh()).
@@ -53,6 +56,8 @@ final class WalletViewModel {
         do {
             let proposal = try await service.prepareSend(destination: destination, amount: amount, feeTier: feeTier)
             await syncFromService()
+            // Отправка ещё не завершена: получатель должен вернуть Slatepack.
+            TxReminders.schedule(id: proposal.txID.uuidString)
             return proposal
         } catch let error as WalletError {
             errorMessage = error.localizedDescription
@@ -64,6 +69,10 @@ final class WalletViewModel {
         do {
             let record = try await service.receive(slatepack: slatepack)
             await syncFromService()
+            if record.responseSlatepack != nil {
+                // Приём тоже интерактивный: ответ нужно вернуть отправителю.
+                TxReminders.schedule(id: record.id.uuidString)
+            }
             return record
         } catch let error as WalletError {
             errorMessage = error.localizedDescription
@@ -82,6 +91,8 @@ final class WalletViewModel {
         do {
             try await service.finalize(slatepackResponse: trimmed)
             await syncFromService()
+            // Незавершённых интерактивных транзакций больше нет.
+            TxReminders.cancelAll()
         } catch let error as WalletError {
             errorMessage = error.localizedDescription
             throw error
