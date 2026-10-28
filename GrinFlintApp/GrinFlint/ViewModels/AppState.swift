@@ -17,6 +17,8 @@ final class AppState {
     private(set) var onboardingStep: OnboardingStep?
     private(set) var isWorking = false
     private(set) var onboardingError: String?
+    /// Текущий этап восстановления (для прогресса в онбординге).
+    private(set) var restoreStage: String?
 
     init() {
         service = WalletFactory.makeService()
@@ -77,15 +79,52 @@ final class AppState {
     func restore(mnemonic: String) {
         isWorking = true
         onboardingError = nil
+        restoreStage = "Создаём кошелёк из seed-фразы…"
         Task {
             do {
-                try await service.restore(mnemonic: mnemonic)
-                finishOnboarding()
+                try await restoreWithProgress(mnemonic: mnemonic)
             } catch {
                 onboardingError = error.localizedDescription
+                restoreStage = nil
+                isWorking = false
             }
-            isWorking = false
         }
+    }
+
+    /// Восстановление по этапам: создание → открытие → скан выходов.
+    /// Прерванное восстановление можно продолжить: если seed-файл уже создан,
+    /// кошелёк просто открывается (повторная генерация не выполняется).
+    private func restoreWithProgress(mnemonic: String) async throws {
+        var alreadyOpened = false
+        do {
+            try await service.restore(mnemonic: mnemonic)
+        } catch {
+            restoreStage = "Кошелёк уже создан — продолжаем открытие…"
+            do {
+                try await service.open()
+                alreadyOpened = true
+            } catch {
+                throw error
+            }
+        }
+
+        if !alreadyOpened {
+            restoreStage = "Открываем кошелёк…"
+            try await service.open()
+        }
+
+        restoreStage = "Сканируем выходы с ноды — это может занять несколько минут…"
+        var refreshError: String?
+        do {
+            try await service.refresh()
+        } catch {
+            // Вход не блокируем: покажем ошибку синхронизации на портфеле.
+            refreshError = error.localizedDescription
+        }
+
+        restoreStage = nil
+        isWorking = false
+        finishOnboarding(alreadyOpened: true, warning: refreshError)
     }
 
     func clearOnboardingError() {
@@ -94,12 +133,19 @@ final class AppState {
 
     // MARK: Завершение онбординга
 
-    private func finishOnboarding() {
+    private func finishOnboarding(alreadyOpened: Bool = false, warning: String? = nil) {
         UserDefaults.standard.set(true, forKey: "walletExists")
         let vm = WalletViewModel(service: service)
         viewModel = vm
         onboardingStep = nil
-        Task { await activate() }
+        Task {
+            if alreadyOpened {
+                await vm.syncFromService()
+                if let warning { vm.reportError(warning) }
+            } else {
+                await activate()
+            }
+        }
     }
 
     private func activate() async {

@@ -1,24 +1,30 @@
 import Foundation
 import LocalAuthentication
 
-/// Биометрическая защита: Face ID / Touch ID на вход и на подпись.
+/// Биометрическая защита: Face ID / Touch ID с резервным кодом устройства.
 ///
-/// Политика — `deviceOwnerAuthentication` (биометрия + фолбэк на код
-/// устройства): отказ в биометрии или отсутствие датчика не должен
-/// блокировать кошелёк безвыходно. В CI/симуляторе evaluatePolicy
-/// возвращает ошибку — вызывающий код трактует это как «биометрия
-/// недоступна» и пропускает дальше (пароль устройства / демо).
+/// Политика — `.deviceOwnerAuthentication` (биометрия, при отказе/отсутствии
+/// датчика — код устройства). Любой отказ, отмена или ошибка означают, что
+/// пользователь **не подтвердил** действие: вызывающий код обязан остаться
+/// заблокированным и не выполнять защищённую операцию.
+///
+/// Исключение только для UI-тестов в симуляторе и только по явному аргументу
+/// запуска `-simBiometric allow|deny|cancel`; на устройстве этот код не
+/// компилируется.
 enum BiometricAuth {
     enum BiometricError: LocalizedError {
         case cancelled
         case unavailable(String)
+        case failed(String)
 
         var errorDescription: String? {
             switch self {
             case .cancelled:
-                return "Требование безопасности не подтверждено."
+                return "Подтверждение отменено — действие не выполнено."
             case .unavailable(let reason):
                 return reason
+            case .failed(let reason):
+                return "Не удалось подтвердить личность: \(reason)"
             }
         }
     }
@@ -35,33 +41,100 @@ enum BiometricAuth {
         }
     }
 
-    /// Требует биометрию (с фолбэком на код устройства).
-    /// - Parameter reason: строка в диалоге системы.
-    /// - Throws: `BiometricError.cancelled` при отказе/отмене.
+    /// Есть ли на устройстве биометрия или код-пароль (то, чем можно
+    /// подтвердить действие). Без этого защита включена, но вход невозможен —
+    /// это нужно показывать пользователю, а не молча пропускать.
+    static var isAvailable: Bool {
+        LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
+    }
+
+    /// Контекст последнего успешного подтверждения. Нужен, чтобы Keychain
+    /// прочитал защищённый пароль без второго системного запроса в той же
+    /// сессии (иначе пользователь видит два диалога подряд).
+    private(set) static var authenticatedContext: LAContext?
+    private(set) static var lastSuccessAt: Date?
+
+    /// Было ли подтверждение пользователя совсем недавно (например, тем же
+    /// запуском для чтения пароля из Keychain).
+    static func recentlyConfirmed(within seconds: TimeInterval) -> Bool {
+        guard let at = lastSuccessAt else { return false }
+        return Date().timeIntervalSince(at) <= seconds
+    }
+
+    /// Причина, по которой подтверждение недоступно (nil — доступно).
+    static var unavailableReason: String? {
+        guard !isAvailable else { return nil }
+        return "На устройстве не задан код-пароль: подтвердить личность нельзя. "
+            + "Задайте код-пароль в настройках iOS — без него вход в кошелёк и подпись запрещены."
+    }
+
+    /// Требует подтверждение пользователя.
+    /// - Parameter reason: строка в системном диалоге.
+    /// - Throws: `.cancelled` при отмене/отказе, `.unavailable` если нет
+    ///   код-пароля/биометрии, `.failed` при прочих ошибках.
     static func require(reason: String) async throws {
+        if let override = simulatorOverride() {
+            switch override {
+            case .allow:
+                return
+            case .deny:
+                throw BiometricError.cancelled
+            case .cancel:
+                throw BiometricError.cancelled
+            }
+        }
+
         let context = LAContext()
         context.localizedCancelTitle = "Отмена"
+        context.localizedFallbackTitle = "Ввести код устройства"
         var nsError: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &nsError) else {
-            // Биометрия не настроена: не блокируем безвыходно — пропускаем.
-            return
+            let reason = unavailableReason ?? nsError?.localizedDescription
+                ?? "Подтверждение недоступно на этом устройстве."
+            throw BiometricError.unavailable(reason)
         }
+
         do {
             let success = try await context.evaluatePolicy(
                 .deviceOwnerAuthentication,
                 localizedReason: reason
             )
-            if !success { throw BiometricError.cancelled }
+            guard success else { throw BiometricError.cancelled }
+            authenticatedContext = context
+            lastSuccessAt = Date()
         } catch let error as LAError {
             switch error.code {
             case .userCancel, .userFallback, .systemCancel, .appCancel,
                  .authenticationFailed, .biometryLockout:
                 throw BiometricError.cancelled
+            case .biometryNotEnrolled, .biometryNotAvailable, .passcodeNotSet:
+                throw BiometricError.unavailable(
+                    unavailableReason ?? error.localizedDescription
+                )
             default:
-                // Прочие ошибки (например, симулятор без enrolled датчика) —
-                // не блокируем кошелёк.
-                return
+                throw BiometricError.failed(error.localizedDescription)
             }
         }
+    }
+
+    // MARK: - Только для UI-тестов в симуляторе
+
+    private enum SimulatorOverride: String {
+        case allow
+        case deny
+        case cancel
+    }
+
+    /// Переопределение работает только в симуляторе и только по явному
+    /// аргументу `-simBiometric allow|deny|cancel`. На устройстве всегда nil.
+    private static func simulatorOverride() -> SimulatorOverride? {
+        #if targetEnvironment(simulator)
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-simBiometric"),
+              args.count > index + 1 else { return nil }
+        return SimulatorOverride(rawValue: args[index + 1])
+        #else
+        return nil
+        #endif
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Получение Grin: адрес кошелька + приём входящего Slatepack.
 struct ReceiveView: View {
@@ -11,6 +12,7 @@ struct ReceiveView: View {
     @State private var validationError: String?
     @State private var qrImage: UIImage?
     @State private var isScanning = false
+    @State private var showImporter = false
 
     /// `initialSlatepack` — текст из ссылки `grinslate://` или из буфера.
     init(initialSlatepack: String = "") {
@@ -58,6 +60,28 @@ struct ReceiveView: View {
                     }
                 }
             }
+        }
+        .fileImporter(
+            isPresented: $showImporter,
+            allowedContentTypes: [.plainText, .data]
+        ) { result in
+            importSlatepackFile(result)
+        }
+    }
+
+    /// Импорт входящего Slatepack из файла (наряду со вставкой и QR).
+    private func importSlatepackFile(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            if let text = try? String(contentsOf: url, encoding: .utf8) {
+                slatepackInput = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                validationError = "Не удалось прочитать файл как текст (UTF-8)."
+            }
+        case .failure(let error):
+            validationError = error.localizedDescription
         }
     }
 
@@ -116,6 +140,17 @@ struct ReceiveView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("receive.scan")
+
+                    Button {
+                        showImporter = true
+                    } label: {
+                        Label("Загрузить из файла", systemImage: "doc.badge.plus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("receive.file")
 
                     Button {
                         Task { await accept() }
@@ -199,6 +234,11 @@ struct ReceiveResultSheet: View {
 
                     if let response = tx.responseSlatepack {
                         CopyableField(title: "Ответный Slatepack для отправителя", value: response, isMultiline: true)
+                        ShareLink(item: response) {
+                            Label("Поделиться ответом", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                        }
                         Text("Отправитель вставит его в приложение и завершит перевод. После подтверждения обновите баланс.")
                             .font(.system(size: 13))
                             .foregroundStyle(Theme.textSecondary)

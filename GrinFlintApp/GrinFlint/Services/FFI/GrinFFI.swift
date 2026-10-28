@@ -65,6 +65,26 @@ enum GrinFFI {
             throw GrinFFIError.api(lastError())
         }
     }
+
+    /// Вызов функции без handle (например, проверка ноды).
+    static func callStandalone<T: Decodable>(
+        _ body: () -> UnsafeMutablePointer<CChar>?,
+        as type: T.Type
+    ) throws -> T {
+        guard let ptr = body() else {
+            throw GrinFFIError.api(lastError())
+        }
+        defer { grin_string_free(ptr) }
+        let string = String(cString: ptr)
+        guard let data = string.data(using: .utf8) else {
+            throw GrinFFIError.badJSON(string)
+        }
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            throw GrinFFIError.badJSON(string)
+        }
+    }
 }
 
 // MARK: - DTO из JSON ответов FFI
@@ -107,5 +127,17 @@ struct GrinSendResult: Decodable {
 
 struct GrinReceiveResult: Decodable {
     let slatepack: String
+}
+
+struct GrinNodeChainResult: Decodable {
+    let chain: String
+    let hash: String
+    let height: UInt64
+}
+
+/// Genesis-хеш сети кошелька (для проверки совместимости ноды).
+struct GrinChainGenesis: Decodable {
+    let chain: String
+    let hash: String
 }
 #endif

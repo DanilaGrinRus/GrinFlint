@@ -63,6 +63,10 @@ int32_t grin_wallet_finalize(GrinWallet *handle, const char *slatepack_response)
 /* Отменить неподтверждённую транзакцию по slate_id (uuid). */
 int32_t grin_wallet_cancel(GrinWallet *handle, const char *slate_id);
 
+/* Genesis-хеш сети кошелька для проверки совместимости ноды.
+ * Возвращает {"chain":"mainnet|testnet","hash":<hex>}; NULL — ошибка. */
+char *grin_wallet_chain_genesis(const char *chain);
+
 #ifdef __cplusplus
 }
 #endif

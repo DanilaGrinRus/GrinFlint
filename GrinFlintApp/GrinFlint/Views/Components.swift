@@ -97,7 +97,9 @@ struct CopyableField: View {
                     .tracking(0.6)
                 Spacer()
                 Button {
-                    UIPasteboard.general.string = value
+                    // Slatepack/адрес — чувствительные данные: только локальный
+                    // буфер и короткий срок жизни (см. Clipboard).
+                    Clipboard.copyLocalOnly(value)
                     withAnimation(.snappy) { copied = true }
                     Task {
                         try? await Task.sleep(nanoseconds: 1_500_000_000)

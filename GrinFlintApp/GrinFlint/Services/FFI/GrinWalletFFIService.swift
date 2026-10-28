@@ -20,6 +20,9 @@ actor GrinWalletFFIService: WalletService {
 
     private let handle: GrinWalletHandle
     private let password: String
+    /// Журнал незавершённых переводов: Slatepack в истории не хранится,
+    /// поэтому этапы переживают обновление истории и перезапуск приложения.
+    private let pending: PendingOperationsStore
     private(set) var slatepackAddress = ""
 
     /// Для экрана настроек: это не демо-заглушка.
@@ -32,7 +35,18 @@ actor GrinWalletFFIService: WalletService {
 
     init(dataDir: String, nodeURL: String, chain: Chain, password: String) throws {
         self.password = password
+        // Журнал операций лежит рядом с данными кошелька.
+        self.pending = PendingOperationsStore(
+            directory: URL(fileURLWithPath: dataDir, isDirectory: true)
+        )
         self.handle = try GrinWalletHandle(dataDir: dataDir, nodeURL: nodeURL, chain: chain.rawValue)
+    }
+
+    /// Незавершённый перевод для экрана портфеля.
+    var pendingOperation: PendingOperation? { pending.latest }
+
+    func dismissPending(id: UUID) async {
+        pending.remove(id: id)
     }
 
     /// Создать новый seed; возвращает мнемонику.
@@ -78,12 +92,30 @@ actor GrinWalletFFIService: WalletService {
     }
 
     func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+        // Один незавершённый перевод за раз: повторный вызов подписал бы
+        // вторую транзакцию и задвоил операцию.
+        if let awaiting = pending.awaitingSend {
+            throw WalletError.pendingOperationExists(awaiting.stage.title)
+        }
         let nano = Self.nano(amount)
         let dest = destination.trimmingCharacters(in: .whitespaces)
         guard !dest.isEmpty else { throw WalletError.invalidAddress }
         let result: GrinSendResult = try GrinFFI.call({ h in
             grin_wallet_send(h.raw, nano, dest)
         }, handle: handle, as: GrinSendResult.self)
+        let operation = PendingOperation(
+            id: UUID(),
+            kind: .send,
+            stage: .awaitingResponse,
+            slatepack: result.slatepack,
+            destination: dest,
+            amount: "\(amount)",
+            fee: "\(Self.grin(result.fee))",
+            txID: result.slate_id,
+            createdAt: Date(),
+            lastError: nil
+        )
+        pending.upsert(operation)
         return SendProposal(
             amount: amount,
             fee: Self.grin(result.fee),
@@ -96,8 +128,21 @@ actor GrinWalletFFIService: WalletService {
         let result: GrinReceiveResult = try GrinFFI.call({ h in
             grin_wallet_receive(h.raw, slatepack)
         }, handle: handle, as: GrinReceiveResult.self)
-        // Ответный slatepack нужно вернуть отправителю — он завершит перевод.
-        // Транзакция появится в истории после refresh().
+        // Ответный Slatepack сохраняем: его нужно вернуть отправителю даже
+        // после перезапуска приложения и обновления истории.
+        let operation = PendingOperation(
+            id: UUID(),
+            kind: .receive,
+            stage: .responseReady,
+            slatepack: result.slatepack,
+            destination: nil,
+            amount: nil,
+            fee: nil,
+            txID: nil,
+            createdAt: Date(),
+            lastError: nil
+        )
+        pending.upsert(operation)
         return TransactionRecord(
             id: UUID(), type: .received, status: .unconfirmed,
             amount: 0, fee: 0, message: "",
@@ -111,6 +156,10 @@ actor GrinWalletFFIService: WalletService {
         try GrinFFI.callStatus({ h in
             grin_wallet_finalize(h.raw, slatepackResponse)
         }, handle: handle)
+        // Подпись прошла: запись о незавершённой отправке больше не нужна.
+        if let awaiting = pending.awaitingSend {
+            pending.remove(id: awaiting.id)
+        }
     }
 
     func cancel(slateID: String) async throws {
@@ -120,7 +169,10 @@ actor GrinWalletFFIService: WalletService {
     }
 
     func exportSlatepack(txID: UUID) async -> String? {
-        transactions.first { $0.id == txID }?.slatepack
+        if let stored = pending.operation(txID: txID.uuidString) {
+            return stored.slatepack
+        }
+        return pending.latest?.slatepack ?? transactions.first { $0.id == txID }?.slatepack
     }
 
     // MARK: маппинг

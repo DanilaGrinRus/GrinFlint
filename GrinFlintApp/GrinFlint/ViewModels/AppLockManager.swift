@@ -1,19 +1,25 @@
 import Foundation
 import Observation
 
-/// Управляет экраном блокировки: вход (Face ID) и автоблокировка по таймеру
-/// неактивности. Таймер сбрасывается по событию касания (`sendActivity()`).
+/// Управляет экраном блокировки: вход (Face ID / код устройства) и
+/// автоблокировка по таймеру неактивности. Таймер сбрасывается по событию
+/// касания (`sendActivity()`).
+///
+/// Инвариант безопасности: `isLocked` снимается **только** после успешного
+/// `BiometricAuth.require`. Любая ошибка/отмена оставляет экран блокировки.
 @Observable
 final class AppLockManager {
     private(set) var isLocked = false
     private(set) var isAuthenticating = false
+    /// Причина, по которой разблокировка не удалась (для экрана блокировки).
+    private(set) var lastError: String?
 
     /// Сцена активна (не в фоне) — таймер крутится только тогда.
     private var isSceneActive = true
     private var inactivityTimer: Timer?
 
     init() {
-        // При защищённом входе стартуем заблокированным.
+        // При защищённом входе стартуем заблокированными.
         isLocked = WalletLock.isProtectionEnabled
     }
 
@@ -40,21 +46,29 @@ final class AppLockManager {
 
     // MARK: Разблокировка
 
+    /// Разблокировать может только успешное подтверждение пользователя.
+    /// Ошибка/отмена/недоступность аутентификации оставляют замок закрытым.
     @MainActor
     func unlock() async {
         guard isLocked, !isAuthenticating else { return }
         isAuthenticating = true
+        lastError = nil
         defer { isAuthenticating = false }
+
         do {
-            try await BiometricAuth.require(reason: "Разблокируйте кошелёк")
+            // Пароль из Keychain мог потребовать подтверждения секунду назад
+            // (политика userPresence): не показываем второй диалог подряд.
+            if !BiometricAuth.recentlyConfirmed(within: 10) {
+                try await BiometricAuth.require(reason: "Разблокируйте кошелёк")
+            }
             isLocked = false
+            lastError = nil
             restartTimer()
-        } catch BiometricAuth.BiometricError.cancelled {
-            // Пользователь отменил — остаёмся на экране блокировки.
-            isLocked = true
         } catch {
-            isLocked = false
-            restartTimer()
+            // Никакого «пропускаем при ошибке»: остаёмся заблокированными.
+            isLocked = true
+            lastError = error.localizedDescription
+            stopTimer()
         }
     }
 

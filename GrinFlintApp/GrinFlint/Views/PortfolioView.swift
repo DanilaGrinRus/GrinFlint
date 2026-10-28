@@ -9,6 +9,9 @@ struct PortfolioView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     balanceCard
+                    if let pending = viewModel.pendingOperation {
+                        PendingOperationCard(operation: pending)
+                    }
                     actionButtons
                     recentSection
                 }

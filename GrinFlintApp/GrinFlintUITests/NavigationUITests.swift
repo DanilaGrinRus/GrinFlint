@@ -247,6 +247,104 @@ final class NavigationUITests: XCTestCase {
         )
     }
 
+    /// Блокировка: при отказе аутентификации экран остаётся закрытым.
+    func testLockStaysClosedWhenAuthenticationFails() {
+        app.terminate()
+        app.launchArguments = [
+            "-walletExists", "YES", "-simDemo",
+            "-requireBiometrics", "YES",
+            "-simBiometric", "deny",
+            "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU",
+        ]
+        app.launch()
+        XCTAssertTrue(
+            app.staticTexts["Кошелёк заблокирован"].waitForExistence(timeout: 20),
+            "экран блокировки не появился"
+        )
+        app.buttons.containing(NSPredicate(format: "label BEGINSWITH 'Разблокировать'"))
+            .firstMatch.tap()
+        XCTAssertTrue(
+            app.staticTexts["Кошелёк заблокирован"].exists,
+            "замок снялся без успешного подтверждения"
+        )
+        XCTAssertTrue(
+            app.staticTexts["lock.error"].waitForExistence(timeout: 5),
+            "нет сообщения об отказе подтверждения"
+        )
+    }
+
+    /// Блокировка: успешное подтверждение пускает в кошелёк.
+    func testLockOpensAfterAuthentication() {
+        app.terminate()
+        app.launchArguments = [
+            "-walletExists", "YES", "-simDemo",
+            "-requireBiometrics", "YES",
+            "-simBiometric", "allow",
+            "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU",
+        ]
+        app.launch()
+        XCTAssertTrue(
+            app.staticTexts["Общий баланс"].waitForExistence(timeout: 20),
+            "после подтверждения кошелёк не открылся"
+        )
+        XCTAssertFalse(
+            app.staticTexts["Кошелёк заблокирован"].exists,
+            "замок остался на экране"
+        )
+    }
+
+    /// Незавершённый перевод переживает перезапуск приложения.
+    func testPendingOperationSurvivesRestart() {
+        app.terminate()
+        app.launchArguments = [
+            "-walletExists", "YES", "-simDemo", "-simResetState",
+            "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU",
+        ]
+        app.launch()
+        XCTAssertTrue(
+            app.staticTexts["Общий баланс"].waitForExistence(timeout: 20),
+            "портфель не открылся"
+        )
+        app.buttons["portfolio.send"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Отправить GRIN"].waitForExistence(timeout: 10),
+            "экран отправки не открылся"
+        )
+        let destination = app.textFields["send.destination"]
+        destination.tap()
+        destination.typeText("grin1testaddress")
+        let amount = app.textFields["send.amount"]
+        amount.tap()
+        amount.typeText("1")
+        app.buttons["Создать транзакцию"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Транзакция создана"].waitForExistence(timeout: 15),
+            "транзакция не создалась"
+        )
+        app.buttons["Готово"].tap()
+
+        // Перезапуск без сброса состояния: этап перевода должен сохраниться.
+        app.terminate()
+        app.launchArguments = [
+            "-walletExists", "YES", "-simDemo",
+            "-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU",
+        ]
+        app.launch()
+        XCTAssertTrue(
+            app.buttons["pending.operation"].waitForExistence(timeout: 20),
+            "незавершённый перевод потерялся после перезапуска"
+        )
+        app.buttons["pending.operation"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Незавершённый перевод"].waitForExistence(timeout: 10),
+            "экран продолжения перевода не открылся"
+        )
+        XCTAssertTrue(
+            app.buttons["Завершить перевод"].waitForExistence(timeout: 10),
+            "нет действия завершения перевода"
+        )
+    }
+
     /// Сканер QR: в симуляторе камеры нет — показываем понятное сообщение.
     func testScannerFallback() {
         waitPortfolio()

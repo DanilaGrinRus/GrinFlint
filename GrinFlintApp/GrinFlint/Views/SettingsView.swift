@@ -10,6 +10,9 @@ struct SettingsView: View {
     @AppStorage(WalletLock.autoLockIntervalKey) private var autoLockIntervalRaw =
         WalletLock.Interval.oneMinute.rawValue
     @State private var showSeed = false
+    @State private var isCheckingNode = false
+    @State private var nodeCheckResult: String?
+    @State private var nodeCheckError: String?
 
     /// Демо-сид-фраза (НЕ используйте реальные средства с ней).
     private let demoSeed = [
@@ -85,8 +88,59 @@ struct SettingsView: View {
                           : "floonet-нода; применится при следующем запуске", systemImage: "info.circle")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textTertiary)
+
+                    if !viewModel.isDemoMode {
+                        Button {
+                            Task { await checkNode() }
+                        } label: {
+                            HStack(spacing: 8) {
+                                if isCheckingNode {
+                                    ProgressView().tint(Theme.accent)
+                                } else {
+                                    Image(systemName: "network")
+                                }
+                                Text("Проверить ноду")
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isCheckingNode)
+                        .accessibilityIdentifier("node.check")
+
+                        if let nodeCheckResult {
+                            Text(nodeCheckResult)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.positive)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("node.check.ok")
+                        }
+                        if let nodeCheckError {
+                            Text(nodeCheckError)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.warning)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("node.check.error")
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private func checkNode() async {
+        isCheckingNode = true
+        nodeCheckResult = nil
+        nodeCheckError = nil
+        defer { isCheckingNode = false }
+        do {
+            let result = try await NodeProbe.check(
+                urlString: nodeURL,
+                expected: WalletFactory.network
+            )
+            nodeCheckResult = "Нода доступна: сеть \(result.chain), genesis \(result.genesisPrefix)…"
+        } catch {
+            nodeCheckError = error.localizedDescription
         }
     }
 
@@ -128,6 +182,21 @@ struct SettingsView: View {
                                 .foregroundStyle(Theme.textPrimary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                    }
+
+                    Divider().overlay(Theme.stroke)
+
+                    Text(KeychainStore.lastProtection.rawValue)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("security.keychain")
+                    if let reason = BiometricAuth.unavailableReason {
+                        Text(reason)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     Divider().overlay(Theme.stroke)

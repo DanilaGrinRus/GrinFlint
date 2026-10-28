@@ -43,11 +43,22 @@ enum WalletFactory {
     }
 
     static func makeService() -> any WalletService {
-        // Скриншоты в CI (`-simDemo`): демо-данные вместо реального сервиса,
-        // чтобы кадры выглядели как наполненный кошелёк. В обычном запуске
-        // флаг не передаётся.
+        // Скриншоты и UI-тесты в CI (`-simDemo`): демо-данные вместо реального
+        // сервиса. Флаг действует только в симуляторе — на устройстве он
+        // игнорируется, чтобы демо не подменяло настоящий кошелёк.
         if ProcessInfo.processInfo.arguments.contains("-simDemo") {
-            return MockWalletService()
+            #if targetEnvironment(simulator)
+            let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            if ProcessInfo.processInfo.arguments.contains("-simResetState") {
+                // Только для UI-тестов: чистое состояние между прогонами.
+                try? FileManager.default.removeItem(
+                    at: directory.appendingPathComponent("pending-operations.json")
+                )
+            }
+            return MockWalletService(pendingDirectory: directory)
+            #else
+            NSLog("GrinFlint: -simDemo игнорируется вне симулятора")
+            #endif
         }
         #if GRINFFI
         do {

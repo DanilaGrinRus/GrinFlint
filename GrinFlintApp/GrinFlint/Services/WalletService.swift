@@ -54,12 +54,20 @@ protocol WalletService: AnyObject {
     /// Завершить отправку: принять ответный Slatepack получателя и отправить
     /// финальную транзакцию в сеть. В демо — просто подтверждает запись.
     func finalize(slatepackResponse: String) async throws
+
+    /// Незавершённый перевод (сохраняется на диск, переживает перезапуск).
+    var pendingOperation: PendingOperation? { get async }
+
+    /// Убрать запись о приёме, когда ответ уже передан отправителю.
+    func dismissPending(id: UUID) async
 }
 
 extension WalletService {
     var backendName: String { "демо-режим (MockWalletService)" }
     var isDemo: Bool { true }
     var unavailableReason: String? { nil }
+    var pendingOperation: PendingOperation? { nil }
+    func dismissPending(id: UUID) async {}
 }
 
 /// Заглушка, когда grin-wallet не поднялся: любая операция возвращает ошибку
@@ -113,6 +121,11 @@ final class MockWalletService: WalletService {
 
     private(set) var transactions: [TransactionRecord]
 
+    /// Незавершённый перевод: в демо тоже сохраняется на диск, чтобы
+    /// проверить продолжение после перезапуска приложения.
+    private(set) var pendingOperation: PendingOperation?
+    private let pendingStore: PendingOperationsStore?
+
     let slatepackAddress = "grin1q5kv3zyx7w8xjf0v2t4h9d6c3b1n5p7m9k2l4r6s8u0e2q4w6y8i0o2p4a6s8d"
 
     /// Слова для демо-генерации seed (не настоящая мнемоника Grin —
@@ -124,7 +137,15 @@ final class MockWalletService: WalletService {
         "velvet", "letter", "dream", "bonus", "wiggle"
     ]
 
-    init() {
+    init(pendingDirectory: URL? = nil) {
+        if let directory = pendingDirectory {
+            let store = PendingOperationsStore(directory: directory)
+            pendingStore = store
+            pendingOperation = store.latest
+        } else {
+            pendingStore = nil
+            pendingOperation = nil
+        }
         let now = Date()
         transactions = [
             TransactionRecord(
@@ -187,6 +208,9 @@ final class MockWalletService: WalletService {
     }
 
     func prepareSend(destination: String, amount: Decimal, feeTier: FeeTier) async throws -> SendProposal {
+        if let awaiting = pendingOperation, awaiting.kind == .send, awaiting.stage == .awaitingResponse {
+            throw WalletError.pendingOperationExists(awaiting.stage.title)
+        }
         let fee = feeTier.fee
         let dest = destination.trimmingCharacters(in: .whitespaces)
         guard !dest.isEmpty else { throw WalletError.invalidAddress }
@@ -210,6 +234,14 @@ final class MockWalletService: WalletService {
             ),
             at: 0
         )
+        let operation = PendingOperation(
+            id: UUID(), kind: .send, stage: .awaitingResponse,
+            slatepack: slatepack, destination: dest,
+            amount: "\(amount)", fee: "\(fee)",
+            txID: txID.uuidString, createdAt: Date(), lastError: nil
+        )
+        pendingOperation = operation
+        pendingStore?.upsert(operation)
         return SendProposal(amount: amount, fee: fee, slatepack: slatepack, txID: txID)
     }
 
@@ -233,7 +265,18 @@ final class MockWalletService: WalletService {
     }
 
     func exportSlatepack(txID: UUID) async -> String? {
-        transactions.first { $0.id == txID }?.slatepack
+        if let op = pendingOperation, op.txID == txID.uuidString {
+            return op.slatepack
+        }
+        if let stored = pendingStore?.operation(txID: txID.uuidString) {
+            return stored.slatepack
+        }
+        return transactions.first { $0.id == txID }?.slatepack
+    }
+
+    func dismissPending(id: UUID) async {
+        if pendingOperation?.id == id { pendingOperation = nil }
+        pendingStore?.remove(id: id)
     }
 
     func finalize(slatepackResponse: String) async throws {
@@ -242,10 +285,19 @@ final class MockWalletService: WalletService {
         }
         try await Task.sleep(nanoseconds: 400_000_000)
         guard let index = transactions.firstIndex(where: { $0.type == .sent && $0.status == .unconfirmed }) else {
+            // Перевод уже завершён — запись о нём просто убираем.
+            if let op = pendingOperation, op.kind == .send {
+                pendingOperation = nil
+                pendingStore?.remove(id: op.id)
+            }
             return
         }
         transactions[index].status = .confirmed
         balance.locked -= (transactions[index].amount.magnitude + transactions[index].fee)
         transactions[index].slatepack = nil
+        if let op = pendingOperation, op.kind == .send {
+            pendingOperation = nil
+            pendingStore?.remove(id: op.id)
+        }
     }
 }

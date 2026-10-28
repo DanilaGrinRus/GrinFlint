@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Пошаговая отправка Grin через Slatepack.
 struct SendFlowView: View {
@@ -141,6 +142,7 @@ struct SendFlowView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     TextField("0.0", text: $amountText)
                         .keyboardType(.decimalPad)
+                        .accessibilityIdentifier("send.amount")
                         .font(Theme.rounded(34, weight: .bold))
                         .foregroundStyle(Theme.textPrimary)
                         .tint(Theme.accent)
@@ -235,12 +237,27 @@ struct SendResultSheet: View {
     @State private var isWorking = false
     @State private var isFinished = false
     @State private var finalizeError: String?
+    @State private var showImporter = false
+
+    private var stageText: String {
+        if isFinished {
+            return "Этап 3 из 3: перевод отправлен в сеть"
+        }
+        if requiresFinalize {
+            return "Этап 2 из 3: передайте запрос получателю и вставьте его ответ ниже"
+        }
+        return "Демо-режим: запрос не уходит в сеть"
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     header
+                    Text(stageText)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.textSecondary)
+                        .multilineTextAlignment(.center)
                     summaryCard
 
                     if !requiresFinalize {
@@ -259,6 +276,11 @@ struct SendResultSheet: View {
                             .multilineTextAlignment(.center)
                     } else {
                         CopyableField(title: "Slatepack для получателя", value: proposal.slatepack, isMultiline: true)
+                        ShareLink(item: proposal.slatepack) {
+                            Label("Поделиться запросом", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                        }
                         finalizeSection
                     }
 
@@ -273,6 +295,12 @@ struct SendResultSheet: View {
                 Button("OK") { finalizeError = nil }
             } message: {
                 Text(finalizeError ?? "")
+            }
+            .fileImporter(
+                isPresented: $showImporter,
+                allowedContentTypes: [.plainText, .data]
+            ) { result in
+                importResponseFile(result)
             }
         }
         .presentationDetents([.large])
@@ -350,7 +378,32 @@ struct SendResultSheet: View {
                 }
                 .buttonStyle(GrinButtonStyle())
                 .disabled(response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isWorking)
+
+                Button {
+                    showImporter = true
+                } label: {
+                    Label("Импортировать ответ из файла", systemImage: "doc.badge.plus")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
             }
+        }
+    }
+
+    /// Импорт ответного Slatepack из файла (наряду с вставкой и QR).
+    private func importResponseFile(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            if let text = try? String(contentsOf: url, encoding: .utf8) {
+                response = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                finalizeError = "Не удалось прочитать файл как текст (UTF-8)."
+            }
+        case .failure(let error):
+            finalizeError = error.localizedDescription
         }
     }
 

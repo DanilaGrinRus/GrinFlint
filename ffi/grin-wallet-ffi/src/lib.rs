@@ -15,6 +15,8 @@ use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{
     InitTxArgs, InitTxSendArgs, SlatepackAddress, WalletInst,
 };
+use grin_core::core::hash::Hashed;
+use grin_core::genesis;
 use grin_core::global::{self, ChainTypes};
 use grin_keychain::ExtKeychain;
 use grin_util::secp::key::SecretKey;
@@ -147,13 +149,22 @@ pub extern "C" fn grin_wallet_create(
         let data_dir = c_str(data_dir).unwrap_or_else(|| ".".into());
         let node_url = c_str(node_url)
             .unwrap_or_else(|| "https://grinnode.live:3413".into());
-        let chain = c_str(chain).unwrap_or_else(|| "mainnet".into());
+        // Сеть задаётся явно: отсутствующая или неизвестная строка — ошибка,
+        // а не молчаливый mainnet (для кошелька это разные деньги).
+        let chain = c_str(chain).ok_or_else(|| {
+            "сеть не задана: ожидается \"mainnet\", \"testnet\" или \"floonet\"".to_string()
+        })?;
         let api_secret = c_str(api_secret).filter(|s| !s.is_empty());
 
         let chain_type = match chain.as_str() {
             // В grin 5.5.2 тестовая сеть называется Testnet (бывш. Floonet)
             "testnet" | "floonet" => ChainTypes::Testnet,
-            _ => ChainTypes::Mainnet,
+            "mainnet" => ChainTypes::Mainnet,
+            other => {
+                return Err(format!(
+                    "неизвестная сеть «{other}»: ожидается \"mainnet\", \"testnet\" или \"floonet\""
+                ))
+            }
         };
         // thread-local — для текущего потока, глобальный — чтобы не паниковать
         // при вызове с другого потока (см. GrinWallet::chain_type).
@@ -582,6 +593,46 @@ pub extern "C" fn grin_wallet_cancel(handle: *mut GrinWallet, slate_id: *const c
         Err(_) => {
             set_error(panic_error("grin_wallet_cancel"));
             -1
+        }
+    }
+}
+
+/// Genesis-хеш сети: по нему проверяется, что нода работает в той же цепи,
+/// что и кошелёк. chain: "mainnet" | "testnet" | "floonet" — строго.
+#[no_mangle]
+pub extern "C" fn grin_wallet_chain_genesis(chain: *const c_char) -> *mut c_char {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
+        let chain = c_str(chain).ok_or_else(|| {
+            "сеть не задана: ожидается \"mainnet\", \"testnet\" или \"floonet\"".to_string()
+        })?;
+        // genesis_* сверяются с thread-local типом цепи — выставляем его явно.
+        let (block, name) = match chain.as_str() {
+            "testnet" | "floonet" => {
+                global::set_local_chain_type(ChainTypes::Testnet);
+                (genesis::genesis_test(), "testnet")
+            }
+            "mainnet" => {
+                global::set_local_chain_type(ChainTypes::Mainnet);
+                (genesis::genesis_main(), "mainnet")
+            }
+            other => return Err(format!(
+                "неизвестная сеть «{other}»: ожидается \"mainnet\", \"testnet\" или \"floonet\""
+            )),
+        };
+        Ok(json!({
+            "chain": name,
+            "hash": block.header.hash().to_string(),
+        }))
+    });
+    match result {
+        Ok(Ok(v)) => ok_json(v),
+        Ok(Err(e)) => {
+            set_error(e);
+            fail()
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_chain_genesis"));
+            fail()
         }
     }
 }

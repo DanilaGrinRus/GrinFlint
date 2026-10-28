@@ -10,6 +10,8 @@ final class WalletViewModel {
     private(set) var slatepackAddress = ""
     private(set) var isRefreshing = false
     private(set) var errorMessage: String?
+    /// Незавершённый перевод (этап операции сохранён на диск).
+    private(set) var pendingOperation: PendingOperation?
 
     /// Демо-режим: сервис работает без сети Grin (MockWalletService).
     let isDemoMode: Bool
@@ -30,6 +32,14 @@ final class WalletViewModel {
         balance = await service.balance
         transactions = await service.transactions
         slatepackAddress = await service.slatepackAddress
+        pendingOperation = await service.pendingOperation
+    }
+
+    /// Убрать запись о приёме после того, как ответ передан отправителю.
+    func dismissPending() async {
+        guard let operation = pendingOperation else { return }
+        await service.dismissPending(id: operation.id)
+        await syncFromService()
     }
 
     var recentTransactions: [TransactionRecord] {

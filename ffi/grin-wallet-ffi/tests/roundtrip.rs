@@ -254,3 +254,61 @@ fn wallet_open_on_another_thread() {
         drop(mnemonic);
     }
 }
+
+/// Сеть задаётся строго: NULL и неизвестная строка — ошибка, а не mainnet.
+#[test]
+fn chain_type_is_strict() {
+    unsafe {
+        let dir = unique_dir("chain");
+        let url = cs("http://127.0.0.1:1");
+
+        let h = grin_wallet_create(cs(&dir).as_ptr(), url.as_ptr(), ptr::null(), ptr::null());
+        assert!(h.is_null(), "create без сети должен вернуть NULL");
+        let err = last_error();
+        assert!(err.contains("сеть"), "ошибка без сети: {err}");
+
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            url.as_ptr(),
+            cs("regtest").as_ptr(),
+            ptr::null(),
+        );
+        assert!(h.is_null(), "create с неизвестной сетью должен вернуть NULL");
+        let err = last_error();
+        assert!(err.contains("regtest"), "ошибка с неизвестной сетью: {err}");
+
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            url.as_ptr(),
+            cs("testnet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create с testnet: {}", last_error());
+
+        grin_wallet_destroy(h);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+/// Genesis-хеш сети: строгая сеть и разные хеши у mainnet/testnet.
+#[test]
+fn chain_genesis_is_strict() {
+    unsafe {
+        let p = grin_wallet_chain_genesis(cs("testnet").as_ptr());
+        assert!(!p.is_null(), "chain_genesis(testnet): {}", last_error());
+        let test = take_string(p).expect("ответ NULL");
+        assert!(test.contains("\"chain\":\"testnet\""), "ответ: {test}");
+
+        let p = grin_wallet_chain_genesis(cs("mainnet").as_ptr());
+        assert!(!p.is_null(), "chain_genesis(mainnet): {}", last_error());
+        let main = take_string(p).expect("ответ NULL");
+        assert!(main.contains("\"chain\":\"mainnet\""), "ответ: {main}");
+        assert_ne!(test, main, "genesis-хеши сетей не должны совпадать");
+
+        let p = grin_wallet_chain_genesis(cs("regtest").as_ptr());
+        assert!(p.is_null(), "неизвестная сеть должна вернуть NULL");
+        assert!(last_error().contains("regtest"), "ошибка: {}", last_error());
+
+        let p = grin_wallet_chain_genesis(ptr::null());
+        assert!(p.is_null(), "NULL-сеть должна вернуть NULL");
+    }
+}

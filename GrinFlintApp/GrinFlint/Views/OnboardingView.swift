@@ -104,19 +104,17 @@ struct CreateWalletView: View {
                     }
 
                     Button {
-                        UIPasteboard.general.string = mnemonic
-                    } label: {
-                        Label("Скопировать", systemImage: "doc.on.doc")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
-                    }
-
-                    Button {
                         appState.confirmMnemonicWritten()
                     } label: {
                         Text("Я записал(а) — продолжить")
                     }
                     .buttonStyle(GrinButtonStyle())
+
+                    Text("Перенос фразы через буфер обмена не предусмотрен: запишите её от руки "
+                         + "или в менеджер паролей. Приложение не хранит фразу в открытом виде.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary)
+                        .multilineTextAlignment(.center)
                 } else {
                     ProgressView().tint(Theme.accent)
                     Text("Генерируем seed…")
@@ -179,6 +177,22 @@ struct RestoreWalletView: View {
                 .buttonStyle(GrinButtonStyle())
                 .disabled(appState.isWorking || (wordCount != 12 && wordCount != 24))
                 .opacity(wordCount == 12 || wordCount == 24 ? 1 : 0.5)
+
+                if appState.isWorking, let stage = appState.restoreStage {
+                    VStack(spacing: 8) {
+                        ProgressView().tint(Theme.accent)
+                        Text(stage)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .accessibilityIdentifier("restore.stage")
+                        Text("Восстановление можно безопасно прервать и продолжить: "
+                             + "кошелёк создаётся один раз, повторная подпись не выполняется.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textTertiary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
             }
             .padding(20)
         }

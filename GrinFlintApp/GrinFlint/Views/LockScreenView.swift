@@ -49,6 +49,21 @@ struct LockScreenView: View {
                 }
                 .buttonStyle(GrinButtonStyle())
                 .disabled(lock.isAuthenticating)
+
+                if let error = lock.lastError {
+                    Text(error)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.warning)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("lock.error")
+                }
+                if let reason = BiometricAuth.unavailableReason {
+                    Text(reason)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.warning)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("lock.unavailable")
+                }
                 Spacer()
             }
             .padding(24)

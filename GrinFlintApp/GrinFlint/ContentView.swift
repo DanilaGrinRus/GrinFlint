@@ -54,12 +54,6 @@ struct ContentView: View {
                 incoming = IncomingSlatepack(text: text)
             }
         }
-        .task {
-            // Для XCUITest: `-simIncoming <slatepack>` открывает тот же лист.
-            if let text = simIncomingArgument {
-                incoming = IncomingSlatepack(text: text)
-            }
-        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
@@ -70,12 +64,18 @@ struct ContentView: View {
                 break
             }
         }
-        .overlay {
-            // Контент полностью закрыт (как фон в десктопном shell),
-            // автоблокировка безопасна только когда экран незаметен.
-            if lock.isLocked {
-                LockScreenView(lock: lock)
-                    .transition(.opacity)
+        .onChange(of: lock.isLocked) { _, locked in
+            if locked {
+                // Ссылка/лист приёма не должны оставаться поверх блокировки.
+                incoming = nil
+            }
+            LockScreenPresenter.shared.setLocked(locked, lock: lock)
+        }
+        .task {
+            // Приложение могло стартовать сразу заблокированным.
+            LockScreenPresenter.shared.setLocked(lock.isLocked, lock: lock)
+            if let text = simIncomingArgument {
+                incoming = IncomingSlatepack(text: text)
             }
         }
     }

@@ -108,6 +108,9 @@ enum WalletError: LocalizedError {
     case invalidMnemonic
     case unavailable(String)
     case notImplemented(String)
+    /// Есть незавершённый перевод: второй не создаём, чтобы не подписать
+    /// повторно и не задвоить операцию.
+    case pendingOperationExists(String)
 
     var errorDescription: String? {
         switch self {
@@ -127,6 +130,10 @@ enum WalletError: LocalizedError {
             return String(localized: "Кошелёк недоступен: \(reason)")
         case .notImplemented(let what):
             return String(localized: "Не реализовано в демо-режиме: \(what).")
+        case .pendingOperationExists(let details):
+            return String(
+                localized: "Есть незавершённый перевод: \(details). Завершите его — повторная подпись не создаётся."
+            )
         }
     }
 }
