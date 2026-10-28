@@ -38,6 +38,11 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     }
 
     private func configureCamera() {
+        // В симуляторе камеры нет: не запрашиваем доступ, а сразу объясняем.
+        guard AVCaptureDevice.default(for: .video) != nil else {
+            showUnavailable()
+            return
+        }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             startSession()
