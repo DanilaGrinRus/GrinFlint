@@ -34,12 +34,50 @@ pub struct GrinWallet {
 
 thread_local! {
     static LAST_ERROR: RefCell<CString> = RefCell::new(CString::new("").unwrap());
+    static PANIC_MSG: RefCell<String> = RefCell::new(String::new());
 }
 
 fn set_error(msg: String) {
     LAST_ERROR.with(|e| {
         *e.borrow_mut() = CString::new(msg).unwrap_or_else(|_| CString::new("unknown error").unwrap());
     });
+}
+
+/// Один раз ставим hook, который запоминает текст паники в thread-local:
+/// без него в Swift приходит только «panic in grin_wallet_x».
+fn install_panic_hook() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let text = if let Some(s) = info.payload().downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = info.payload().downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "panic без текста".to_string()
+            };
+            let location = info
+                .location()
+                .map(|l| format!(" ({}:{})", l.file(), l.line()))
+                .unwrap_or_default();
+            PANIC_MSG.with(|m| *m.borrow_mut() = format!("{text}{location}"));
+            previous(info);
+        }));
+    });
+}
+
+fn panic_message() -> String {
+    PANIC_MSG.with(|m| m.borrow().clone())
+}
+
+fn panic_error(context: &str) -> String {
+    let detail = panic_message();
+    if detail.is_empty() {
+        format!("panic in {context}")
+    } else {
+        format!("panic in {context}: {detail}")
+    }
 }
 
 fn c_str(ptr: *const c_char) -> Option<String> {
@@ -71,6 +109,7 @@ fn guarded<T, F>(f: F) -> std::thread::Result<T>
 where
     F: FnOnce() -> T,
 {
+    install_panic_hook();
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
 }
 
@@ -152,7 +191,7 @@ pub extern "C" fn grin_wallet_create(
             fail()
         }
         Err(_) => {
-            set_error("panic in grin_wallet_create".into());
+            set_error(panic_error("grin_wallet_create"));
             fail()
         }
     }
@@ -190,7 +229,7 @@ pub extern "C" fn grin_wallet_open(handle: *mut GrinWallet, password: *const c_c
             fail()
         }
         Err(_) => {
-            set_error("panic in grin_wallet_open".into());
+            set_error(panic_error("grin_wallet_open"));
             fail()
         }
     }
@@ -243,7 +282,7 @@ pub extern "C" fn grin_wallet_create_seed(
             fail()
         }
         Err(_) => {
-            set_error("panic in grin_wallet_create_seed".into());
+            set_error(panic_error("grin_wallet_create_seed"));
             fail()
         }
     }
@@ -297,7 +336,7 @@ pub extern "C" fn grin_wallet_balance(
             fail()
         }
         Err(_) => {
-            set_error("panic in grin_wallet_balance".into());
+            set_error(panic_error("grin_wallet_balance"));
             fail()
         }
     }
@@ -344,7 +383,7 @@ pub extern "C" fn grin_wallet_txs(handle: *mut GrinWallet) -> *mut c_char {
             fail()
         }
         Err(_) => {
-            set_error("panic in grin_wallet_txs".into());
+            set_error(panic_error("grin_wallet_txs"));
             fail()
         }
     }
@@ -416,7 +455,7 @@ pub extern "C" fn grin_wallet_send(
             fail()
         }
         Err(_) => {
-            set_error("panic in grin_wallet_send".into());
+            set_error(panic_error("grin_wallet_send"));
             fail()
         }
     }
@@ -466,7 +505,7 @@ pub extern "C" fn grin_wallet_receive(
             fail()
         }
         Err(_) => {
-            set_error("panic in grin_wallet_receive".into());
+            set_error(panic_error("grin_wallet_receive"));
             fail()
         }
     }
@@ -501,7 +540,7 @@ pub extern "C" fn grin_wallet_finalize(
             -1
         }
         Err(_) => {
-            set_error("panic in grin_wallet_finalize".into());
+            set_error(panic_error("grin_wallet_finalize"));
             -1
         }
     }
@@ -526,7 +565,7 @@ pub extern "C" fn grin_wallet_cancel(handle: *mut GrinWallet, slate_id: *const c
             -1
         }
         Err(_) => {
-            set_error("panic in grin_wallet_cancel".into());
+            set_error(panic_error("grin_wallet_cancel"));
             -1
         }
     }

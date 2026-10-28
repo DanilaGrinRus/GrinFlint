@@ -226,6 +226,9 @@ jobs:
           shot auth-prompt -requireBiometrics YES
           xcrun simctl terminate "$DEVICE" com.dan.grinflint >/dev/null 2>&1 || true
           ls -la "$PWD/screenshots"
+          echo "--- паники/ошибки приложения в логе симулятора ---"
+          xcrun simctl spawn "$DEVICE" log show --last 10m --style compact \
+            --predicate 'process == "GrinFlint"' 2>/dev/null | grep -i -E 'panic|fatal' | tail -30 || true
 
       - name: Артефакт скриншотов
         if: always()

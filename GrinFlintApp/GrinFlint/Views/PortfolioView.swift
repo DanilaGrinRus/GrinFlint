@@ -37,11 +37,14 @@ struct PortfolioView: View {
                     .disabled(viewModel.isRefreshing)
                 }
             }
-            .overlay(alignment: .top) {
+            // Баннер вставляет отступ в контент, а не накрывает карточку баланса.
+            .safeAreaInset(edge: .top, spacing: 0) {
                 if let error = viewModel.errorMessage {
                     ErrorBanner(message: error) {
                         viewModel.clearError()
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
