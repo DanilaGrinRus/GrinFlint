@@ -380,3 +380,33 @@ fn contract_fixtures_are_shared() {
     assert!(recv.can_finalize);
     recv.validate().expect("fixture валиден");
 }
+/// Нулевые аргументы отсекаются до разыменования (без UB).
+#[test]
+fn ffi_rejects_null_handles_and_arguments() {
+    unsafe {
+        assert!(grin_wallet_open(ptr::null_mut(), cs("pw").as_ptr()).is_null());
+        let e = last_error();
+        assert!(e.contains("handle"), "open(null): {e}");
+
+        assert!(grin_wallet_txs(ptr::null_mut()).is_null());
+        assert!(grin_wallet_balance(ptr::null_mut(), 0).is_null());
+        assert_eq!(grin_wallet_cancel(ptr::null_mut(), cs("id").as_ptr()), -1);
+
+        assert!(grin_wallet_transfer_state(
+            cs("none").as_ptr(),
+            cs("posted").as_ptr(),
+            1,
+            1,
+            ptr::null(),
+            cs("id").as_ptr(),
+            ptr::null()
+        )
+        .is_null());
+        assert!(last_error().contains("направление"));
+
+        assert!(grin_wallet_parse_amount(ptr::null()).is_null());
+        // Освобождение NULL-строки — допустимая no-op.
+        grin_string_free(ptr::null_mut());
+        grin_wallet_destroy(ptr::null_mut());
+    }
+}

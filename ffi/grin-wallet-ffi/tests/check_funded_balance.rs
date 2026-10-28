@@ -36,9 +36,10 @@ unsafe fn take_string(p: *mut c_char) -> Option<String> {
 
 #[test]
 fn funded_balance() {
-    let Ok(seed) = std::env::var("GRIN_E2E_SEED_FUNDED") else {
-        eprintln!("GRIN_E2E_SEED_FUNDED не задан — пропуск");
-        return;
+    // Диагностический прогон без seed — ошибка конфигурации, а не «ok».
+    let seed = match std::env::var("GRIN_E2E_SEED_FUNDED") {
+        Ok(s) if !s.is_empty() => s,
+        _ => panic!("конфигурация: GRIN_E2E_SEED_FUNDED не задан — проверка баланса не выполнялась"),
     };
     let node = std::env::var("GRIN_E2E_NODE_URL").unwrap_or_else(|_| "127.0.0.1:13413".into());
     let secret = std::env::var("GRIN_E2E_API_SECRET").ok();

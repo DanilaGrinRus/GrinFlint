@@ -256,7 +256,26 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 
 ## Ближайшие открытые пункты
 
-### Продолжение с 2026-10-29 (06:10 локаль = 23:10 UTC 28.10)
+### Продолжение с 2026-10-29 (06:25 локаль = 23:25 UTC 28.10)
+
+**Локальные (без iPhone и без Xcode) закрытые пункты приёмки.**
+
+1. Online-тесты больше не «проходят» без обязательных параметров:
+   `e2e_floonet` и `check_funded_balance` падают конфигурационной ошибкой
+   («GRIN_E2E_SEED_FUNDED не задан — прогон без него не является проверкой»).
+   Проверено локально: `test floonet_roundtrip_send_receive ... FAILED`,
+   `test result: FAILED. 0 passed; 1 failed`. Дефолтный адрес ноды в E2E
+   исправлен с mainnet-порта 3413 на testnet 13413.
+2. FFI: нулевой handle больше не разыменовывается — все 8 функций берут
+   контекст через проверяемый `wallet_mut`, возвращая «handle is null».
+   `grin_wallet_destroy(NULL)` и `grin_string_free(NULL)` — безопасные no-op.
+   Тест `ffi_rejects_null_handles_and_arguments` покрывает open/txs/balance/
+   cancel/transfer_state/parse_amount.
+3. Rust-тесты: **9 passed** локально (`cargo test --test roundtrip`).
+
+Остаётся локально закрываемым (Rust/конфиг, без устройства): владение
+строками и двойное освобождение в тестах, последовательность вызовов до
+`open`, проверка отсутствия секретов в ошибках на синтетических маркерах.### Продолжение с 2026-10-29 (06:10 локаль = 23:10 UTC 28.10)
 
 **Общий контракт desktop → iOS подключён.** В `ffi/transfer-contract`
 вендорен пакет `flint-transfer-contract-1.0.0.zip` (sha256

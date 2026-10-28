@@ -8,7 +8,7 @@
 //!
 //! Запускается только когда заданы env-переменные (в обычном CI смоук-прогоне
 //! тест компилируется, но пропускается):
-//!   GRIN_E2E_NODE_URL       — адрес ноды (default http://127.0.0.1:3413)
+//!   GRIN_E2E_NODE_URL       — адрес ноды (default http://127.0.0.1:13413, testnet)
 //!   GRIN_E2E_API_SECRET     — Basic Auth секрет ноды (optional)
 //!   GRIN_E2E_SEED_FUNDED    — seed-фраза кошелька A (24 слова, через пробел)
 //!   GRIN_E2E_SEED_B         — seed-фраза кошелька B; если не задана — B создаётся
@@ -90,15 +90,17 @@ fn has_confirmed_received(json: &str, amount: u64) -> bool {
 
 #[test]
 fn floonet_roundtrip_send_receive() {
+    // Отсутствие обязательных параметров — ошибка конфигурации, а не PASS.
     let seed_funded = match std::env::var("GRIN_E2E_SEED_FUNDED") {
         Ok(s) if !s.is_empty() => s,
-        _ => {
-            eprintln!("GRIN_E2E_SEED_FUNDED не задан — E2E пропущен");
-            return;
-        }
+        _ => panic!(
+            "конфигурация E2E: GRIN_E2E_SEED_FUNDED не задан — прогон без него не является проверкой"
+        ),
     };
-    let node_url =
-        std::env::var("GRIN_E2E_NODE_URL").unwrap_or_else(|_| "http://127.0.0.1:3413".into());
+    let node_url = std::env::var("GRIN_E2E_NODE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "http://127.0.0.1:13413".into());
     let api_secret = std::env::var("GRIN_E2E_API_SECRET").ok().filter(|s| !s.is_empty());
     let seed_b = std::env::var("GRIN_E2E_SEED_B").ok().filter(|s| !s.is_empty());
     let seed_b_out = std::env::var("GRIN_E2E_SEED_B_OUT").ok().filter(|s| !s.is_empty());

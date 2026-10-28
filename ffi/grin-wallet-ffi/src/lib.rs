@@ -42,6 +42,13 @@ pub struct GrinWallet {
 
 // ---------- ошибки ----------
 
+/// Проверка указателя на контекст: NULL — ошибка, а не разыменование.
+fn wallet_mut<'a>(handle: *mut GrinWallet) -> Result<&'a mut GrinWallet, String> {
+    // SAFETY: NULL отсекается до разыменования; ссылка живёт только на время
+    // вызова FFI-функции.
+    unsafe { handle.as_mut() }.ok_or_else(|| "handle is null".into())
+}
+
 thread_local! {
     static LAST_ERROR: RefCell<CString> = RefCell::new(CString::new("").unwrap());
     static PANIC_MSG: RefCell<String> = RefCell::new(String::new());
@@ -230,7 +237,7 @@ pub unsafe extern "C" fn grin_wallet_destroy(handle: *mut GrinWallet) {
 #[no_mangle]
 pub extern "C" fn grin_wallet_open(handle: *mut GrinWallet, password: *const c_char) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mask = w
@@ -267,7 +274,7 @@ pub extern "C" fn grin_wallet_create_seed(
     mnemonic: *const c_char,
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mnemonic = c_str(mnemonic).map(ZeroingString::from);
@@ -321,7 +328,7 @@ pub extern "C" fn grin_wallet_balance(
     refresh: i32,
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         if refresh == 1 {
             // Явная проверка ноды. Без неё grin-wallet при недоступной ноде
@@ -370,7 +377,7 @@ pub extern "C" fn grin_wallet_balance(
 #[no_mangle]
 pub extern "C" fn grin_wallet_txs(handle: *mut GrinWallet) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let (_updated, txs) = w
             .owner
@@ -429,7 +436,7 @@ pub extern "C" fn grin_wallet_send(
     dest: *const c_char,
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let dest = c_str(dest).ok_or("dest is null")?;
         SlatepackAddress::try_from(dest.as_str()).map_err(|e| format!("bad dest: {e}"))?;
@@ -494,7 +501,7 @@ pub extern "C" fn grin_wallet_receive(
     slatepack: *const c_char,
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let slatepack = c_str(slatepack).ok_or("slatepack is null")?;
 
@@ -545,7 +552,7 @@ pub extern "C" fn grin_wallet_finalize(
     slatepack_response: *const c_char,
 ) -> i32 {
     let result = guarded(|| -> Result<(), String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let slatepack = c_str(slatepack_response).ok_or("slatepack is null")?;
         let slate = w
@@ -578,7 +585,7 @@ pub extern "C" fn grin_wallet_finalize(
 #[no_mangle]
 pub extern "C" fn grin_wallet_cancel(handle: *mut GrinWallet, slate_id: *const c_char) -> i32 {
     let result = guarded(|| -> Result<(), String> {
-        let w = unsafe { &mut *handle };
+        let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let slate_id = c_str(slate_id).ok_or("slate_id is null")?;
         let uuid = uuid::Uuid::parse_str(&slate_id).map_err(|e| format!("bad uuid: {e}"))?;
