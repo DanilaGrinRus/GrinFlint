@@ -201,3 +201,30 @@ jobs:
           echo "--- sim-smoke.json ---"
           cat "$OUT"
           grep -q '"ok" *: *true' "$OUT" || { echo "смоук не прошёл"; exit 1; }
+
+          # --- Скриншоты реальных экранов ---
+          # Флаги передаются аргументами запуска: UserDefaults читает их из
+          # домена аргументов, поэтому настройки не пишутся на диск.
+          mkdir -p "$PWD/screenshots"
+          shot() { # $1 — имя файла; дальше — аргументы запуска
+            local name="$1"; shift
+            xcrun simctl terminate "$DEVICE" com.dan.grinflint >/dev/null 2>&1 || true
+            xcrun simctl launch "$DEVICE" com.dan.grinflint "$@" >/dev/null
+            sleep 6
+            xcrun simctl io "$DEVICE" screenshot "$PWD/screenshots/$name.png"
+            echo "снят $name.png"
+          }
+          shot onboarding
+          shot lockscreen -requireBiometrics YES
+          shot portfolio -walletExists YES
+          xcrun simctl terminate "$DEVICE" com.dan.grinflint >/dev/null 2>&1 || true
+          ls -la "$PWD/screenshots"
+
+      - name: Артефакт скриншотов
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-screenshots
+          path: screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
