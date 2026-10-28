@@ -34,10 +34,6 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
-        // Каждое касание — активность: сбрасывает таймер автоблокировки.
-        .simultaneousGesture(
-            TapGesture().onEnded { lock.sendActivity() }
-        )
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
@@ -61,20 +57,30 @@ struct ContentView: View {
     private var tabView: some View {
         TabView {
             PortfolioView()
+                .simultaneousGesture(activityTap)
                 .tabItem {
                     Label("Портфель", systemImage: "chart.pie.fill")
                 }
             TransactionsView()
+                .simultaneousGesture(activityTap)
                 .tabItem {
                     Label("Транзакции", systemImage: "list.bullet")
                 }
             SettingsView()
+                .simultaneousGesture(activityTap)
                 .tabItem {
                     Label("Настройки", systemImage: "gearshape.fill")
                 }
         }
         .tint(Theme.accent)
         .environment(lock)
+    }
+
+    /// Касание по контенту — активность для автоблокировки. Жест намеренно
+    /// висит на контенте вкладки, а не на корне: на корне он перехватывал
+    /// тапы по UIKit-таббару (проверено XCUITest).
+    private var activityTap: some Gesture {
+        TapGesture().onEnded { lock.sendActivity() }
     }
 
     /// Для скриншотов в CI: `-simOpen send|receive|transactions|settings`.

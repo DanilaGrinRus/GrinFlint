@@ -47,6 +47,8 @@ final class NavigationUITests: XCTestCase {
             tab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
         guard tab.isSelected else {
+            // Иерархия в лог: видно, что перекрывает таб-бар.
+            print("TAB DEBUG: \(app.debugDescription)")
             fail("вкладка «\(title)» не выбралась")
             return
         }
