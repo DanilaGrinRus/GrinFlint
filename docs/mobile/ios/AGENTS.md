@@ -256,7 +256,33 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 
 ## Ближайшие открытые пункты
 
-### Продолжение с 2026-10-29 (05:30 локаль = 22:30 UTC 28.10)
+### Продолжение с 2026-10-29 (06:10 локаль = 23:10 UTC 28.10)
+
+**Общий контракт desktop → iOS подключён.** В `ffi/transfer-contract`
+вендорен пакет `flint-transfer-contract-1.0.0.zip` (sha256
+`ca7ebbc51a73fd1275422b9e5b697028879264d16ec5501e92d0c4395ac6d377`,
+исходник — `crates/transfer-contract` desktop-проекта, schema 1,
+GPL-3.0-only). CI собирает iOS из этого каталога, доступа к `C:\DHW` не
+требуется.
+
+Что реально используется:
+- `grin_wallet_create` разбирает сеть через `Network::parse` контракта —
+  неизвестная строка по-прежнему ошибка, mainnet молча не выбирается;
+- `grin_wallet_parse_amount` — точный разбор суммы (до 9 знаков, checked
+  overflow) для отправки; Swift передаёт текст суммы, наногрины считает
+  Rust, `Decimal→UInt64(truncating:)` из пути отправки убран;
+- `grin_wallet_transfer_state` — этап/next_action/can_* по общим правилам
+  (posted ≠ confirmed, отмена после публикации запрещена).
+
+Тесты: `cargo test --test roundtrip` — **8 passed** локально, включая
+`contract_fixtures_are_shared` (те же fixtures `send_posted.json` и
+`receive_response_ready.json`, что у desktop), `amount_parse_is_exact`,
+`transfer_state_follows_shared_contract`.
+
+**Канал установки RC зафиксирован:** бесплатный Apple ID (Personal Team)
+через Xcode на Mac пользователя; CI готовит неподписанный Release archive +
+device XCFramework, подпись/установка — локально (7 дней). TestFlight/Ad Hoc
+требуют платного Apple Developer Program и в этот RC не входят.### Продолжение с 2026-10-29 (05:30 локаль = 22:30 UTC 28.10)
 
 **Юнит-тесты вместо «только UI».** Добавлен таргет `GrinFlintTests`
 (`com.apple.product-type.bundle.unit-test`, `TEST_HOST` = приложение) и шаг
