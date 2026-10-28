@@ -3,6 +3,7 @@ import SwiftUI
 /// Пошаговая отправка Grin через Slatepack.
 struct SendFlowView: View {
     @Environment(WalletViewModel.self) private var viewModel
+    @Environment(AddressBook.self) private var addressBook
     @Environment(\.dismiss) private var dismiss
 
     @State private var destination = ""
@@ -72,6 +73,28 @@ struct SendFlowView: View {
                     .tint(Theme.accent)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
+                    .accessibilityIdentifier("send.destination")
+                if !addressBook.contacts.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(addressBook.contacts) { contact in
+                                Button {
+                                    destination = contact.address
+                                } label: {
+                                    Text(contact.name)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Theme.accent)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 7)
+                                        .background(Theme.accentDim)
+                                        .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("send.contact")
+                            }
+                        }
+                    }
+                }
             }
         }
     }

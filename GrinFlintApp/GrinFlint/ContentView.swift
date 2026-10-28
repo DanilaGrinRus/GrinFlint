@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var appState = AppState()
     @State private var lock = AppLockManager()
+    @State private var addressBook = AddressBook()
     @State private var incoming: IncomingSlatepack?
     @Environment(\.scenePhase) private var scenePhase
 
@@ -47,6 +48,7 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .environment(addressBook)
         .onOpenURL { url in
             if let text = AppState.slatepack(from: url) {
                 incoming = IncomingSlatepack(text: text)

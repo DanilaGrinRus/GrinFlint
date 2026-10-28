@@ -1,0 +1,836 @@
+{
+  "sourceLanguage": "ru",
+  "strings": {
+    "\n\nНикому не показывайте эти слова — от них зависит доступ ко всем средствам.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nNever show these words to anyone — they control access to all funds."
+          }
+        }
+      }
+    },
+    "Автоблокировка": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-lock"
+          }
+        }
+      }
+    },
+    "Адрес ноды Grin": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grin node address"
+          }
+        }
+      }
+    },
+    "Адрес получателя (Slatepack)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recipient address (Slatepack)"
+          }
+        }
+      }
+    },
+    "Адресная книга": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Address book"
+          }
+        }
+      }
+    },
+    "Безопасность": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Security"
+          }
+        }
+      }
+    },
+    "Ваш адрес": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your address"
+          }
+        }
+      }
+    },
+    "Введите 12 или 24 слова seed-фразы через пробел. После восстановления кошелёк синхронизируется с нодой и найдёт ваши выходы.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter 12 or 24 seed words separated by spaces. After restoring, the wallet syncs with the node and finds your outputs."
+          }
+        }
+      }
+    },
+    "Восстановить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore"
+          }
+        }
+      }
+    },
+    "Восстановить из seed-фразы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore from seed phrase"
+          }
+        }
+      }
+    },
+    "Восстановление": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore"
+          }
+        }
+      }
+    },
+    "Восстановление кошелька": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore wallet"
+          }
+        }
+      }
+    },
+    "Вставьте Slatepack-сообщение, которое вам прислали:": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste the Slatepack message you received:"
+          }
+        }
+      }
+    },
+    "Генерируем seed…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generating seed…"
+          }
+        }
+      }
+    },
+    "Готово": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "Демо-режим: без подключения к сети Grin": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo mode: not connected to the Grin network"
+          }
+        }
+      }
+    },
+    "Детали": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        }
+      }
+    },
+    "Добавьте Grin-адрес, чтобы не вставлять его каждый раз": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a Grin address so you don't paste it every time"
+          }
+        }
+      }
+    },
+    "Заблокировать сейчас": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock now"
+          }
+        }
+      }
+    },
+    "Завершить перевод": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete transfer"
+          }
+        }
+      }
+    },
+    "Закройте и откройте приложение заново. Если ошибка повторяется — проверьте адрес ноды и свободное место на устройстве.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close and reopen the app. If the error repeats, check the node address and free space on the device."
+          }
+        }
+      }
+    },
+    "Запишите seed-фразу": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write down the seed phrase"
+          }
+        }
+      }
+    },
+    "Имя": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "История операций появится здесь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaction history will appear here"
+          }
+        }
+      }
+    },
+    "Итого": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total"
+          }
+        }
+      }
+    },
+    "Комиссия": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fee"
+          }
+        }
+      }
+    },
+    "Комиссия сети": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network fee"
+          }
+        }
+      }
+    },
+    "Контакты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contacts"
+          }
+        }
+      }
+    },
+    "Копировать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        }
+      }
+    },
+    "Кошелёк заблокирован": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet locked"
+          }
+        }
+      }
+    },
+    "Кошелёк не запустился": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet failed to start"
+          }
+        }
+      }
+    },
+    "Максимум": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Max"
+          }
+        }
+      }
+    },
+    "Настройки": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "Не удалось завершить перевод": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not complete transfer"
+          }
+        }
+      }
+    },
+    "Не удалось создать транзакцию": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not create transaction"
+          }
+        }
+      }
+    },
+    "Некастодиальный кошелёк Grin (Mimblewimble).\nSeed-фраза хранится только на этом устройстве.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non-custodial Grin (Mimblewimble) wallet.\nThe seed phrase is stored only on this device."
+          }
+        }
+      }
+    },
+    "Новый контакт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New contact"
+          }
+        }
+      }
+    },
+    "Новый кошелёк": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New wallet"
+          }
+        }
+      }
+    },
+    "О приложении": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        }
+      }
+    },
+    "Общий баланс": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total balance"
+          }
+        }
+      }
+    },
+    "Ответный Slatepack от получателя": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Response Slatepack from recipient"
+          }
+        }
+      }
+    },
+    "Отмена": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "Отправитель вставит его в приложение и завершит перевод. После подтверждения обновите баланс.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sender pastes it into the app and completes the transfer. Refresh the balance after confirmation."
+          }
+        }
+      }
+    },
+    "Отправить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
+          }
+        }
+      }
+    },
+    "Отправить GRIN": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send GRIN"
+          }
+        }
+      }
+    },
+    "Ошибка": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error"
+          }
+        }
+      }
+    },
+    "Перевод завершён": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfer complete"
+          }
+        }
+      }
+    },
+    "Перевод отправлен в сеть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfer sent to network"
+          }
+        }
+      }
+    },
+    "Передайте этот Slatepack получателю любым способом — в Grin транзакции завершаются совместно.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass this Slatepack to the recipient any way you like — Grin transactions are completed jointly."
+          }
+        }
+      }
+    },
+    "По этому адресу можно получать Slatepack-ответы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This address receives Slatepack responses"
+          }
+        }
+      }
+    },
+    "Подключение": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection"
+          }
+        }
+      }
+    },
+    "Подтвердите личность для продолжения": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm your identity to continue"
+          }
+        }
+      }
+    },
+    "Подтверждение появится в истории после обновления баланса.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The confirmation appears in history after the balance refreshes."
+          }
+        }
+      }
+    },
+    "Пока нет операций": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No transactions yet"
+          }
+        }
+      }
+    },
+    "Показать seed-фразу (демо)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show seed phrase (demo)"
+          }
+        }
+      }
+    },
+    "Показать Slatepack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Slatepack"
+          }
+        }
+      }
+    },
+    "Получено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Received"
+          }
+        }
+      }
+    },
+    "Получить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receive"
+          }
+        }
+      }
+    },
+    "Получить GRIN": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receive GRIN"
+          }
+        }
+      }
+    },
+    "Портфель": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portfolio"
+          }
+        }
+      }
+    },
+    "Последние операции": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent activity"
+          }
+        }
+      }
+    },
+    "Принять и зачислить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept and credit"
+          }
+        }
+      }
+    },
+    "Принять Slatepack от отправителя": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept Slatepack from sender"
+          }
+        }
+      }
+    },
+    "Скопировано": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        }
+      }
+    },
+    "Скопировать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        }
+      }
+    },
+    "Создать новый кошелёк": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create new wallet"
+          }
+        }
+      }
+    },
+    "Создать транзакцию": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create transaction"
+          }
+        }
+      }
+    },
+    "Сохранить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
+    "Средства заблокированы до завершения": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funds are locked until completion"
+          }
+        }
+      }
+    },
+    "Средства ушли в сеть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funds sent to network"
+          }
+        }
+      }
+    },
+    "Сумма": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Amount"
+          }
+        }
+      }
+    },
+    "Транзакции": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transactions"
+          }
+        }
+      }
+    },
+    "Транзакция принята": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaction accepted"
+          }
+        }
+      }
+    },
+    "Транзакция создана": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaction created"
+          }
+        }
+      }
+    },
+    "Экспорт Slatepack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Slatepack"
+          }
+        }
+      }
+    },
+    "Эта транзакция ещё не передана получателю. Экспортируйте Slatepack и отправьте его.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This transaction has not been sent to the recipient yet. Export the Slatepack and send it."
+          }
+        }
+      }
+    },
+    "Эти 24 слова — единственный способ восстановить доступ. Без них средства невозможно вернуть.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These 24 words are the only way to restore access. Without them the funds cannot be recovered."
+          }
+        }
+      }
+    },
+    "Я записал(а) — продолжить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I wrote it down — continue"
+          }
+        }
+      }
+    },
+    "Grin-адрес": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grin address"
+          }
+        }
+      }
+    },
+    "Seed-фраза (демо)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed phrase (demo)"
+          }
+        }
+      }
+    },
+    "Seed-фраза показывалась при создании кошелька; в открытом виде приложение её не хранит": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The seed phrase was shown when the wallet was created; the app does not store it in plain text"
+          }
+        }
+      }
+    },
+    "Slatepack не отправлен": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slatepack not sent"
+          }
+        }
+      }
+    },
+    "Slatepack принят": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slatepack accepted"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

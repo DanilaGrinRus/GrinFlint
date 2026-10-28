@@ -25,6 +25,7 @@ struct SettingsView: View {
                 VStack(spacing: 20) {
                     nodeSection
                     securitySection
+                    contactsSection
                     aboutSection
                 }
                 .padding(16)
@@ -37,6 +38,27 @@ struct SettingsView: View {
                 if WalletFactory.network == .floonet, nodeURL == WalletFactory.mainnetNodeURL {
                     nodeURL = WalletFactory.floonetNodeURL
                 }
+            }
+        }
+    }
+
+    private var contactsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Адресная книга")
+            GrinCard {
+                NavigationLink {
+                    ContactsView()
+                } label: {
+                    HStack {
+                        Label("Контакты", systemImage: "person.2.fill")
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(Theme.textTertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.addressBook")
             }
         }
     }

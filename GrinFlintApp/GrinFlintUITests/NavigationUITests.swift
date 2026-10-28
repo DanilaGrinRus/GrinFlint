@@ -131,8 +131,7 @@ final class NavigationUITests: XCTestCase {
     }
 
     /// Детали транзакции открываются из истории.
-    func testTransactionDetail() {
-        waitPortfolio()
+    func testTransactionDetail() {        waitPortfolio()
         selectTab(index: 1, title: "Транзакции")
         XCTAssertTrue(
             app.navigationBars["Транзакции"].waitForExistence(timeout: 10),
@@ -147,5 +146,67 @@ final class NavigationUITests: XCTestCase {
             "детали транзакции не открылись"
         )
         XCTAssertTrue(app.staticTexts["Комиссия"].exists, "в деталях нет комиссии")
+    }
+
+    /// Адресная книга: добавить контакт и подставить его в отправке.
+    func testAddressBook() {
+        waitPortfolio()
+        selectTab(index: 2, title: "Настройки")
+        XCTAssertTrue(
+            app.navigationBars["Настройки"].waitForExistence(timeout: 10),
+            "экран «Настройки» не открылся"
+        )
+
+        app.buttons["settings.addressBook"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Адресная книга"].waitForExistence(timeout: 10),
+            "адресная книга не открылась"
+        )
+
+        app.buttons["contacts.add"].tap()
+        let name = app.textFields["contact.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "нет поля имени")
+        name.tap()
+        name.typeText("Alice")
+        let address = app.textFields["contact.address"]
+        address.tap()
+        address.typeText("grin1testaddress")
+        app.buttons["Сохранить"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Alice"].waitForExistence(timeout: 10),
+            "контакт не появился в списке"
+        )
+
+        // Назад в настройки, затем в отправку — контакт подставляет адрес.
+        app.navigationBars.buttons.firstMatch.tap()
+        selectTab(index: 0, title: "Портфель")
+        app.buttons["portfolio.send"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Отправить GRIN"].waitForExistence(timeout: 10),
+            "экран отправки не открылся"
+        )
+        let contact = app.buttons["send.contact"].firstMatch
+        XCTAssertTrue(contact.waitForExistence(timeout: 10), "нет контакта в отправке")
+        contact.tap()
+        XCTAssertTrue(
+            (app.textFields["send.destination"].value as? String)?
+                .contains("grin1testaddress") == true,
+            "адрес из контакта не подставился"
+        )
+    }
+
+    /// Английская локализация из Localizable.xcstrings.
+    func testEnglishLocalization() {
+        app.terminate()
+        app.launchArguments = [
+            "-walletExists", "YES", "-simDemo",
+            "-AppleLanguages", "(en)", "-AppleLocale", "en_US"
+        ]
+        app.launch()
+        XCTAssertTrue(
+            app.staticTexts["Total balance"].waitForExistence(timeout: 20),
+            "английская локализация не подхватилась"
+        )
+        XCTAssertTrue(app.tabBars.buttons["Portfolio"].exists, "вкладки не переведены")
     }
 }
