@@ -96,7 +96,7 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 |---|---|
 | `GrinFlintApp/GrinFlint.xcodeproj` | Xcode-проект; синхронизированные группы — **новые .swift подхватываются автоматически**, pbxproj не править |
 | `GrinFlintApp/GrinFlint/Theme.swift` | Все цвета/радиусы/шрифты (токены Flint) |
-| `GrinFlintApp/GrinFlint/SimSmoke.swift` | Самопроверка для CI: запуск с `-SimSmoke` прогоняет Keychain → FFI → seed → open → refresh → восстановление, пишет `Documents/sim-smoke.json` |
+| `GrinFlintApp/GrinFlint/SimSmoke.swift` | Самопроверка для CI: запуск с `-SimSmoke` прогоняет Keychain → FFI → seed → open → refresh → восстановление, пишет `Documents/sim-smoke.json`. Кадры для CI: `-simDemo` (демо-данные) и `-simOpen <экран>` |
 | `GrinFlintApp/SimulatorEntitlements.plist` | Entitlements для ad-hoc подписи симуляторной сборки (без подписи Keychain даёт `-34018`) |
 | `GrinFlintApp/GrinFlint/Views/` | Экраны: Portfolio, SendFlow, Receive, Transactions, Settings, Onboarding, LockScreen, StartupError |
 | `GrinFlintApp/GrinFlint/Services/` | `WalletService` (протокол) + `UnavailableWalletService`, `MockWalletService` (демо), `WalletFactory`, `KeychainStore`, `BiometricAuth`, `SlatepackCodec`, `TxReminders` (локальные напоминания), `FFI/GrinWalletFFIService` (под флагом `GRINFFI`) |
@@ -205,6 +205,11 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 - **Проверка на симуляторе**: шаг «Смоук на симуляторе» в `ios.yml`
   (аргумент `-SimSmoke`, результат — `Documents/sim-smoke.json` в контейнере
   приложения). Локально без Xcode не запустить, только CI.
+- **Скриншоты экранов**: тот же шаг после смоука снимает 8 кадров
+  (`simctl io screenshot`) — артефакт `sim-screenshots` (14 дней). Управление:
+  `-walletExists YES` (основной UI), `-simDemo` (демо-данные),
+  `-simOpen send|receive|transactions|settings` (сразу экран). Локальная копия
+  кадров: `C:\DHW\mobile\grinflint-backups\screenshots-*`.
 - **Запустить E2E в CI**: `gh workflow run floonet-e2e.yml` (dispatch) или
   ждать cron (пн 04:17 UTC). Первичный синк ноды с нуля — долго (было >100
   мин), поэтому цепь кеширует отдельный workflow `floonet-chain-cache.yml`
@@ -234,6 +239,45 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   `docs/mobile/ios/README.md`.
 
 ## Ближайшие открытые пункты
+
+### Продолжение с 2026-10-28 (09:25 локаль = 02:25 UTC)
+
+**Сделано после смоука:**
+
+1. **Скриншоты реальных экранов в CI.** Шаг «Смоук на симуляторе» снимает
+   8 кадров (`simctl io screenshot`) и публикует артефактом `sim-screenshots`
+   (14 дней). Флаги идут аргументами запуска: `-walletExists YES` включает
+   основной UI, `-simDemo` подменяет сервис демо-данными, `-simOpen
+   send|receive|transactions|settings` сразу открывает экран. Первый зелёный
+   прогон — 40616616122; кадры: онбординг, портфель (реальный и демо),
+   отправка, приём, история, настройки, системный запрос кода устройства.
+2. **Баннер ошибки старта.** `AppState.activate()` глотал ошибку `open()` —
+   портфель показывал нули без причины. Теперь ошибка уходит в баннер
+   («Кошелёк не открылся: …»), а сам баннер через `safeAreaInset` сдвигает
+   контент, а не накрывает карточку баланса.
+3. **Найдено этим баннером: паника при повторном открытии кошелька.**
+   Текст: `panic in grin_wallet_open: GLOBAL_CHAIN_TYPE and CHAIN_TYPE unset`.
+   Причина: `grin_core` хранит сеть в thread-local, а FFI зовётся с разных
+   потоков Swift-актора. Фикс (коммит `9479616`): `GrinWallet` помнит
+   `chain_type`, перед каждым вызовом ставит thread-local, `create`
+   инициализирует и глобальный. Регрессия — тест
+   `wallet_open_on_another_thread`; локально `cargo test --test roundtrip` —
+   **3 passed**.
+
+**Состояние на момент записи (09:25 локаль):**
+
+- `HEAD` = `9479616`, дерево чистое, запушено.
+- **iOS Build run 40619667812** (`9479616`) — в работе: XCFramework 10/11,
+  дальше приложение, смоук и кадры (~10 мин).
+- **E2E run 40619696017** (`9479616`) — в работе: шаг roundtrip (9/12,
+  ~10 мин). Баланс A до прогона — 48.832 tGRIN, после ожидается ~48.783.
+- Если прогоны красные: в iOS Build смотреть шаг «Смоук на симуляторе»
+  (отчёт `Documents/sim-smoke.json`) и «Артефакт скриншотов»; в E2E — строки
+  `poll N:`, `подтверждено за N раунд(ов)`, `возврат B→A`.
+
+**Дальше по плану:** XCUITest на навигацию; URL scheme `grinslate:` и
+Share Extension (нужен новый target и правка pbxproj — только с согласия);
+привязать пароль Keychain к биометрии.
 
 ### Продолжение с 2026-10-28 (07:25 локаль = 00:25 UTC)
 

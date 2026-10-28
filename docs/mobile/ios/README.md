@@ -33,7 +33,8 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 - **Приложение реально запускается на симуляторе в CI** (2026-10-28):
   шаг «Смоук на симуляторе» в `ios.yml` запускает app с `-SimSmoke` и
   проверяет Keychain → FFI → seed → open → refresh → восстановление;
-  результат `ok: true` (run 40607181039).
+  результат `ok: true` (run 40607181039). Там же снимаются скриншоты
+  реальных экранов — артефакт `sim-screenshots`.
 - **E2E roundtrip tGRIN против живой floonet-ноды** — проверен вживую
   локально (2026-10-27, 50 tGRIN) и вынесен в CI (`floonet-e2e.yml`);
   сумма в CI 1 tGRIN (`GRIN_E2E_AMOUNT_NGRIN`), иначе комиссия не
