@@ -260,6 +260,22 @@ pub extern "C" fn grin_wallet_balance(
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
+        if refresh == 1 {
+            // Явная проверка ноды. Без неё grin-wallet при недоступной ноде
+            // молча отдаёт баланс из локальной БД (выглядит как «пусто»),
+            // а при 401 на foreign API — заниженный баланс. Пусть лучше
+            // вернётся внятная ошибка, чем ложный ноль.
+            //
+            // node_height сам глотает сетевую ошибку и возвращает локальную
+            // высоту с updated_from_node = false — проверяем этот флаг.
+            let height = w
+                .owner
+                .node_height(w.mask.as_ref())
+                .map_err(|e| format!("нода недоступна: {e}"))?;
+            if !height.updated_from_node {
+                return Err("нода недоступна: нет ответа get_chain_tip".into());
+            }
+        }
         let (_updated, info) = w
             .owner
             .retrieve_summary_info(w.mask.as_ref(), refresh == 1, 2)
