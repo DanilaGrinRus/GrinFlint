@@ -76,7 +76,7 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
 | Кеш цепи | ключ `testnet-chain-<год-W<номер>`; греет `floonet-chain-cache.yml` (вс 20:27 UTC), E2E только restore |
 | E2E | `floonet-e2e.yml` (dispatch + cron пн 04:17 UTC) |
 | Секреты ноды | `.api_secret` и `.foreign_api_secret` у кошелька должны **совпадать** (workflow уравнивает их при старте; иначе restore/refresh кошелька получает 401 и пустой баланс) |
-| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс после трёх прогонов 2026-10-28 — 48.832 tGRIN, один прогон с возвратом B→A стоит ~0.05 tGRIN (сумма возвращается); копия данных кошелька — `C:\DHW\mobile\grinflint-backups\2026-10-28\` |
+| Тестовый кошелёк | секрет `TEST_WALLET_SEED`; файл `C:\DHW\docs\grinflint-ci-wallet.txt` (seed+пароль); баланс после трёх прогонов 2026-10-28 — 48.735 tGRIN, один прогон с возвратом B→A стоит ~0.05 tGRIN (сумма возвращается); копия данных кошелька — `C:\DHW\mobile\grinflint-backups\2026-10-28\` |
 | Нода по умолчанию | floonet-сборка: `http://127.0.0.1:13413` (`WalletFactory.floonetNodeURL`); mainnet-дефолт `https://grinnode.live:3413` — только для Фазы 4 |
 
 ## Локальная нода пользователя (для ручных прогонов)
