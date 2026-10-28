@@ -35,6 +35,9 @@ GitHub: `github.com/DanilaGrinRus/GrinFlint` (ветка `main`, **публич�
   проверяет Keychain → FFI → seed → open → refresh → восстановление;
   результат `ok: true` (run 40607181039). Там же снимаются скриншоты
   реальных экранов — артефакт `sim-screenshots`.
+- **Навигация проверяется XCUITest** (2026-10-28): таргет
+  `GrinFlintUITests` — вкладки, отправка, приём; зелёный прогон 40686799752,
+  результат-бандл в артефакте `uitest-results`.
 - **E2E roundtrip tGRIN против живой floonet-ноды** — проверен вживую
   локально (2026-10-27, 50 tGRIN) и вынесен в CI (`floonet-e2e.yml`);
   сумма в CI 1 tGRIN (`GRIN_E2E_AMOUNT_NGRIN`), иначе комиссия не

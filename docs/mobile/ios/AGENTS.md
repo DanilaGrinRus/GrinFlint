@@ -97,6 +97,7 @@ C-API (FFI) и собранный в XCFramework. Репозиторий пуб�
 | `GrinFlintApp/GrinFlint.xcodeproj` | Xcode-проект; синхронизированные группы — **новые .swift подхватываются автоматически**, pbxproj не править |
 | `GrinFlintApp/GrinFlint/Theme.swift` | Все цвета/радиусы/шрифты (токены Flint) |
 | `GrinFlintApp/GrinFlint/SimSmoke.swift` | Самопроверка для CI: запуск с `-SimSmoke` прогоняет Keychain → FFI → seed → open → refresh → восстановление, пишет `Documents/sim-smoke.json`. Кадры для CI: `-simDemo` (демо-данные) и `-simOpen <экран>` |
+| `GrinFlintApp/GrinFlintUITests/` | XCUITest навигации (`NavigationUITests`): вкладки, отправка, приём; запускается в CI |
 | `GrinFlintApp/SimulatorEntitlements.plist` | Entitlements для ad-hoc подписи симуляторной сборки (без подписи Keychain даёт `-34018`) |
 | `GrinFlintApp/GrinFlint/Views/` | Экраны: Portfolio, SendFlow, Receive, Transactions, Settings, Onboarding, LockScreen, StartupError |
 | `GrinFlintApp/GrinFlint/Services/` | `WalletService` (протокол) + `UnavailableWalletService`, `MockWalletService` (демо), `WalletFactory`, `KeychainStore`, `BiometricAuth`, `SlatepackCodec`, `TxReminders` (локальные напоминания), `FFI/GrinWalletFFIService` (под флагом `GRINFFI`) |
@@ -149,7 +150,9 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 - Восстановление из фразы проверено тестами: 24 слова
   (`wallet_lifecycle_offline`) и 12 слов (`restore_from_12_words`) дают тот
   же slatepack-адрес. Локально на Windows: `cargo test --test roundtrip` —
-  **2 passed** (2026-10-28).
+  **3 passed** (2026-10-28).
+- **Навигация по экранам проверена XCUITest** (2026-10-28, run 40686799752):
+  `testPortfolioAndTabs` и `testSendAndReceiveScreens`, 0 падений.
 - **Приложение реально запускается на симуляторе в CI** (2026-10-28, run
   40607181039): шаг «Смоук на симуляторе» ставит app, запускает с `-SimSmoke`
   и требует `ok: true`. Отчёт: `backend: grin-wallet 5.5.1 (FFI)`,
@@ -210,6 +213,9 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   `-walletExists YES` (основной UI), `-simDemo` (демо-данные),
   `-simOpen send|receive|transactions|settings` (сразу экран). Локальная копия
   кадров: `C:\DHW\mobile\grinflint-backups\screenshots-*`.
+- **UI-тесты**: шаг «UI-тесты на симуляторе (XCUITest)» в `ios.yml`
+  (`xcodebuild test` с FFI-флагами, таргет `GrinFlintUITests`); результат —
+  артефакт `uitest-results` (7 дней).
 - **Запустить E2E в CI**: `gh workflow run floonet-e2e.yml` (dispatch) или
   ждать cron (пн 04:17 UTC). Первичный синк ноды с нуля — долго (было >100
   мин), поэтому цепь кеширует отдельный workflow `floonet-chain-cache.yml`
@@ -239,6 +245,27 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
   `docs/mobile/ios/README.md`.
 
 ## Ближайшие открытые пункты
+
+### Продолжение с 2026-10-28 (19:30 локаль = 12:30 UTC)
+
+**XCUITest на навигацию — работает.** В проект добавлен таргет
+`GrinFlintUITests` (`com.apple.product-type.bundle.ui-testing`,
+synchronized group), в схему — TestAction с TestableReference, в `ios.yml` —
+шаг «UI-тесты на симуляторе (XCUITest)»: `xcodebuild test` с теми же
+FFI-флагами, что и сборка. Прогон **40686799752 — success**:
+`testPortfolioAndTabs` (20.2 с) и `testSendAndReceiveScreens` (12.4 с),
+2 теста, 0 падений. Результат-бандл — артефакт `uitest-results` (7 дней),
+при падении тест прикладывает скриншот и печатает иерархию.
+
+Тест идёт с `-walletExists YES -simDemo` (основной UI без сети и онбординга).
+Для устойчивых тапов у кнопок портфеля есть идентификаторы
+`portfolio.send` / `portfolio.receive`.
+
+**Найдено тестом и исправлено:** тап по таб-бару не переключал вкладку,
+хотя кнопки внутри экранов нажимались. Причина — `TapGesture` на корне
+`ContentView` (сброс таймера автоблокировки) перехватывал касания
+UIKit-таббара. Жест перенесён на контент каждой вкладки; автоблокировка
+работает как раньше.
 
 ### Продолжение с 2026-10-28 (09:25 локаль = 02:25 UTC)
 
@@ -424,12 +451,11 @@ restart ноды ~2 мин → догон ~5 мин → compile ~3 мин → т
 
 ### Дальше по плану
 
-1. UI-навигация: XCUITest (кнопки/экраны) или ручной прогон на устройстве —
-   сервисный стек уже проверяется смоуком, тапы — нет.
-2. URL scheme `grinslate:` и Share Extension: приём Slatepack без копипаста
-   (требует правки pbxproj — отдельная задача с проверкой сборки).
-3. Привязать пароль Keychain к биометрии (`kSecAccessControlBiometryCurrentSet`)
+1. URL scheme `grinslate:` и Share Extension: приём Slatepack без копипаста
+   (требует правки проекта: Info.plist и/или новый таргет — с согласия).
+2. Привязать пароль Keychain к биометрии (`kSecAccessControlBiometryCurrentSet`)
    и решить политику `BiometricAuth` при недоступной биометрии.
-4. Фаза 3 роадмапа: QR для адреса/Slatepack, адресная книга, локализация.
-5. Вернуть текст сообщения к транзакции — только вместе с отдельным каналом
+3. Фаза 3 роадмапа: QR для адреса/Slatepack, адресная книга, локализация.
+4. Вернуть текст сообщения к транзакции — только вместе с отдельным каналом
    передачи (Grinbox/Nostr, Фаза 5): slatepack 5.5.1 его не несёт.
+5. Расширять XCUITest: экран деталей транзакции, отмена, пустые состояния.
