@@ -165,7 +165,17 @@ final class NavigationUITests: XCTestCase {
             "экран «Настройки» не открылся"
         )
 
-        app.buttons["settings.addressBook"].tap()
+        // Строка «Адресная книга» в настройках ниже сгиба — прокручиваем.
+        let bookLink = app.buttons["settings.addressBook"]
+        for _ in 0..<4 where !(bookLink.exists && bookLink.isHittable) {
+            app.swipeUp()
+        }
+        guard bookLink.waitForExistence(timeout: 5), bookLink.isHittable else {
+            print("SETTINGS DEBUG: \(app.debugDescription)")
+            fail("нет доступной строки «Адресная книга» в настройках")
+            return
+        }
+        bookLink.tap()
         XCTAssertTrue(
             app.navigationBars["Адресная книга"].waitForExistence(timeout: 10),
             "адресная книга не открылась"
