@@ -176,10 +176,11 @@ final class NavigationUITests: XCTestCase {
             return
         }
         bookLink.tap()
-        XCTAssertTrue(
-            app.navigationBars["Адресная книга"].waitForExistence(timeout: 10),
-            "адресная книга не открылась"
-        )
+        guard app.navigationBars["Адресная книга"].waitForExistence(timeout: 10) else {
+            print("BOOK DEBUG: \(app.debugDescription)")
+            fail("адресная книга не открылась")
+            return
+        }
 
         app.buttons["contacts.add"].tap()
         let name = app.textFields["contact.name"]
