@@ -201,6 +201,8 @@ jobs:
           APP=$(find "$PWD/build/Build/Products" -maxdepth 2 -name 'GrinFlint.app' -type d | head -1)
           test -n "$APP" || { echo "GrinFlint.app не найден"; exit 1; }
           echo "app: $APP"
+          echo "--- локализации в бандле ---"
+          ls -d "$APP"/*.lproj 2>/dev/null || echo "нет .lproj"
           # Share Extension должна быть встроена в приложение.
           test -d "$APP/PlugIns/GrinFlintShare.appex" || { echo "нет встроенного Share Extension"; exit 1; }
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" \
