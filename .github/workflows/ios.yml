@@ -155,6 +155,20 @@ jobs:
             OTHER_LDFLAGS="-L$PWD/$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
             | xcpretty && exit ${PIPESTATUS[0]}
 
+      # Локализации, собранные в бандл (видно, есть ли ru.lproj).
+      - name: Локализации в бандле
+        run: |
+          APP=$(find "$PWD/build/Build/Products" -maxdepth 2 -name 'GrinFlint.app' -type d | head -1)
+          test -n "$APP" || { echo "GrinFlint.app не найден"; exit 1; }
+          echo "app: $APP"
+          ls -d "$APP"/*.lproj 2>/dev/null || echo "нет .lproj"
+          for d in "$APP"/*.lproj; do
+            [ -d "$d" ] || continue
+            echo "--- $d ---"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleDevelopmentRegion" "$APP/Info.plist" 2>/dev/null || true
+            head -5 "$d/Localizable.strings" 2>/dev/null || true
+          done
+
       # XCUITest: тапы по экранам в симуляторе (демо-сервис, без сети).
       - name: UI-тесты на симуляторе (XCUITest)
         timeout-minutes: 20

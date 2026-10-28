@@ -35,10 +35,12 @@ final class NavigationUITests: XCTestCase {
     }
 
     private func waitPortfolio() {
-        XCTAssertTrue(
-            app.staticTexts["Общий баланс"].waitForExistence(timeout: 20),
-            "портфель не открылся"
-        )
+        guard app.staticTexts["Общий баланс"].waitForExistence(timeout: 20) else {
+            // Дамп иерархии: видно, на каком языке интерфейс и что на экране.
+            print("PORTFOLIO DEBUG: \(app.debugDescription)")
+            fail("портфель не открылся")
+            return
+        }
     }
 
     /// Тап по вкладке с проверкой, что она действительно выбралась.

@@ -257,7 +257,7 @@
 			};
 			buildConfigurationList = 00000000000000000000000B /* Build configuration list for "Project" object */;
 			compatibilityVersion = "Xcode 15.0";
-			developmentRegion = en;
+			developmentRegion = ru;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
