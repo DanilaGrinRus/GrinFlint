@@ -205,3 +205,52 @@ fn restore_from_12_words() {
         let _ = std::fs::remove_dir_all(&dir_b);
     }
 }
+
+/// FFI зовут с разных потоков (Swift actor): chain type в grin_core хранится
+/// в thread-local. До фикса `open` на новом потоке паниковал
+/// «GLOBAL_CHAIN_TYPE and CHAIN_TYPE unset» — на симуляторе это выглядело как
+/// «Кошелёк не открылся: panic in grin_wallet_open».
+#[test]
+fn wallet_open_on_another_thread() {
+    unsafe {
+        let dir = unique_dir("threads");
+        let node = "http://127.0.0.1:1";
+
+        // Создание кошелька — на отдельном потоке.
+        let created = std::thread::spawn({
+            let dir = dir.clone();
+            move || {
+                let h = grin_wallet_create(
+                    cs(&dir).as_ptr(),
+                    cs(node).as_ptr(),
+                    cs("floonet").as_ptr(),
+                    ptr::null(),
+                );
+                assert!(!h.is_null(), "create (поток 1): {}", last_error());
+                let seed = take_string(grin_wallet_create_seed(
+                    h,
+                    cs("pass").as_ptr(),
+                    24,
+                    ptr::null(),
+                ))
+                .expect("create_seed (поток 1) вернул NULL");
+                (h as usize, seed)
+            }
+        })
+        .join()
+        .expect("поток создания запаниковал");
+
+        let (handle, mnemonic) = created;
+        let h = handle as *mut GrinWallet;
+
+        // Открытие — на текущем (другом) потоке.
+        let open = take_string(grin_wallet_open(h, cs("pass").as_ptr()));
+        assert!(open.is_some(), "open на другом потоке: {}", last_error());
+        let address = field(&open.unwrap(), "address");
+        assert!(!address.is_empty(), "пустой адрес после open");
+
+        grin_wallet_destroy(h);
+        let _ = std::fs::remove_dir_all(&dir);
+        drop(mnemonic);
+    }
+}

@@ -28,6 +28,10 @@ pub struct GrinWallet {
     owner: Owner<Lc, HTTPNodeClient, ExtKeychain>,
     mask: Option<SecretKey>,
     config_path: PathBuf,
+    /// Сеть этого кошелька. grin_core хранит chain type в thread-local +
+    /// глобально; FFI зовут с разных потоков (Swift actor), поэтому перед
+    /// каждым вызовом выставляем thread-local заново.
+    chain_type: ChainTypes,
 }
 
 // ---------- ошибки ----------
@@ -151,7 +155,10 @@ pub extern "C" fn grin_wallet_create(
             "testnet" | "floonet" => ChainTypes::Testnet,
             _ => ChainTypes::Mainnet,
         };
+        // thread-local — для текущего потока, глобальный — чтобы не паниковать
+        // при вызове с другого потока (см. GrinWallet::chain_type).
         global::set_local_chain_type(chain_type);
+        let _ = global::init_global_chain_type(chain_type);
 
         let mut config = WalletConfig::default();
         config.data_file_dir = data_dir.clone();
@@ -182,7 +189,7 @@ pub extern "C" fn grin_wallet_create(
                 .map_err(|e| format!("config write {}: {e}", config_path.display()))?;
         }
         let owner = Owner::new(std::sync::Arc::new(grin_util::Mutex::new(wallet)), None, config_path.clone());
-        Ok(GrinWallet { owner, mask: None, config_path })
+        Ok(GrinWallet { owner, mask: None, config_path, chain_type })
     });
     match result {
         Ok(Ok(w)) => Box::into_raw(Box::new(w)),
@@ -210,6 +217,7 @@ pub unsafe extern "C" fn grin_wallet_destroy(handle: *mut GrinWallet) {
 pub extern "C" fn grin_wallet_open(handle: *mut GrinWallet, password: *const c_char) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mask = w
             .owner
@@ -246,6 +254,7 @@ pub extern "C" fn grin_wallet_create_seed(
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         let password = ZeroingString::from(c_str(password).ok_or("password is null")?);
         let mnemonic = c_str(mnemonic).map(ZeroingString::from);
         // В grin-wallet аргумент mnemonic_length у create_wallet — это
@@ -299,6 +308,7 @@ pub extern "C" fn grin_wallet_balance(
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         if refresh == 1 {
             // Явная проверка ноды. Без неё grin-wallet при недоступной ноде
             // молча отдаёт баланс из локальной БД (выглядит как «пусто»),
@@ -347,6 +357,7 @@ pub extern "C" fn grin_wallet_balance(
 pub extern "C" fn grin_wallet_txs(handle: *mut GrinWallet) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         let (_updated, txs) = w
             .owner
             .retrieve_txs(w.mask.as_ref(), true, None, None, None)
@@ -405,6 +416,7 @@ pub extern "C" fn grin_wallet_send(
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         let dest = c_str(dest).ok_or("dest is null")?;
         SlatepackAddress::try_from(dest.as_str()).map_err(|e| format!("bad dest: {e}"))?;
 
@@ -469,6 +481,7 @@ pub extern "C" fn grin_wallet_receive(
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         let slatepack = c_str(slatepack).ok_or("slatepack is null")?;
 
         let decoded = w
@@ -519,6 +532,7 @@ pub extern "C" fn grin_wallet_finalize(
 ) -> i32 {
     let result = guarded(|| -> Result<(), String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         let slatepack = c_str(slatepack_response).ok_or("slatepack is null")?;
         let slate = w
             .owner
@@ -551,6 +565,7 @@ pub extern "C" fn grin_wallet_finalize(
 pub extern "C" fn grin_wallet_cancel(handle: *mut GrinWallet, slate_id: *const c_char) -> i32 {
     let result = guarded(|| -> Result<(), String> {
         let w = unsafe { &mut *handle };
+        global::set_local_chain_type(w.chain_type);
         let slate_id = c_str(slate_id).ok_or("slate_id is null")?;
         let uuid = uuid::Uuid::parse_str(&slate_id).map_err(|e| format!("bad uuid: {e}"))?;
         w.owner
