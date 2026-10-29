@@ -35,7 +35,7 @@ FAIL — не работает. Зелёная сборка не означае�
 | Share Extension из сторонних приложений | DEVICE_ACCEPTANCE D5 | NOT VERIFIED |
 | Мобильная сеть/LAN-нода | DEVICE_ACCEPTANCE D6 | NOT VERIFIED |
 | Dynamic Type, VoiceOver, ресурсы | DEVICE_ACCEPTANCE D7 | NOT VERIFIED |
-| Release archive для устройства | не собран (нет подписи) | FAIL |
+| Release archive для устройства | CI `device-archive`: GrinFlint.xcarchive.zip 11.6 MB, sha256 ff9a9443…, appex + arm64 внутри, BUILD-INFO (commit/Xcode) | PASS (без подписи) / подпись — локально |
 
 ## Вывод
 

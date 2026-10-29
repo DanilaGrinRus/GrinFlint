@@ -256,6 +256,21 @@ post в ноду), `grin_wallet_cancel`. Ошибки: NULL / -1 + `grin_last_er
 
 ## Ближайшие открытые пункты
 
+### Продолжение с 2026-10-29 (07:20 локаль = 00:20 UTC 29.10)
+
+**Device Release archive собирается в CI (без подписи).** Новое задание
+`device-archive` в `ios.yml`: `xcodebuild archive` для
+`generic/platform=iOS`, конфигурация Release, настоящий FFI, Share
+Extension. Проверки внутри задания: `.appex` в `PlugIns`, бинарник arm64,
+BUILD-INFO (commit, run, Xcode), SHA-256 архива. Артефакт `device-archive`
+(30 дней) — 11.6 MB, sha256 `ff9a9443c3a2b2b6f57ac60bc40e6b1736a97a26ce4cc71c143e524c23217fd3`,
+BUILD-INFO: commit `b01b13e…`, run 40791161077, Xcode 16.4 (16F6).
+Подпись Personal Team и установка — на Mac владельца (канал согласован).
+
+**Иконка приложения.** Раньше `Assets.xcassets` отсутствовал — в архиве не
+было иконки. Добавлен каталог с `AppIcon-1024.png` (мята на графите, тема
+Flint) и `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`. Launch screen
+(`UILaunchScreen`) и privacy-строки (`NSCameraUsageDescription`) уже были.
 ### Продолжение с 2026-10-29 (07:05 локаль = 00:05 UTC 29.10)
 
 **Комиссия от настоящего backend — FFI-часть закрыта локально.**
