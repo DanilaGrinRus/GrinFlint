@@ -394,8 +394,9 @@ jobs:
           test -d "$APP/PlugIns/GrinFlintShare.appex" || { echo "Share Extension не встроен"; exit 1; }
           file "$APP/GrinFlint" | grep -q 'arm64' || { echo "бинарник не arm64"; exit 1; }
           # RC обязан содержать настоящий FFI, а не демо-заглушку: строки
-          # ошибок Rust-крейта остаются в бинаре и при strip.
-          strings "$APP/GrinFlint" | grep -q 'недостаточно средств: сумма' \
+          # ошибок Rust-крейта остаются в бинаре и при strip (grep -a читает
+          # UTF-8 байты, в отличие от macOS strings).
+          grep -a -q 'недостаточно средств: сумма' "$APP/GrinFlint" \
             || { echo "в Release-бинарь не попал FFI grin-wallet"; exit 1; }
           {
             echo "commit: ${GITHUB_SHA}"
