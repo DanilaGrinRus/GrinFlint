@@ -23,8 +23,8 @@ FAIL — не работает. Зелёная сборка не означае�
 | Навигация по экранам | 10 XCUITest (run 40782071527) | PASS |
 | QR-адрес, лист приёма по ссылке | `testScannerFallback`, `testIncomingSlatepackSheet` | PASS (симулятор) |
 | Share Extension | `.appex` в PlugIns, `share-services` в CI | PASS (сборка) / NOT VERIFIED (устройство) |
-| Отмена перевода | `cancel` через FFI-тест ошибок; UI-отмена не реализована | FAIL (UI) |
-| Повторная публикация после сбоя post_tx | не реализовано (журнал 2 стадии) | FAIL |
+| Отмена перевода | FFI-guard: только до финализации; live-тесты `cancel_pending` и `slatepack_edges` (после publish отмена отклоняется) | PASS (FFI) / FAIL (UI) |
+| Повторная публикация после сбоя post_tx | `grin_wallet_repost`: finalize сохраняет подписанный Slate, repost публикует его; live-тест rc=0, файл не изменён | PASS (FFI) / NOT VERIFIED (UI) |
 | Комиссия до подтверждения от backend | `grin_wallet_estimate_fee` + live-тест: fee 23 500 000, total 1 023 500 000, баланс не списан | PASS (FFI) / FAIL (UI: fee tiers) |
 | Состояние «баланс неизвестен» (offline/401) | баннер ошибки, но нули возможны | FAIL |
 | Восстановление после прерывания (этапы) | текст этапов есть; продолжение не проверено на устройстве | NOT VERIFIED |

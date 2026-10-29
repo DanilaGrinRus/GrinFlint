@@ -13,7 +13,7 @@ use grin_wallet_api::{Foreign, Owner};
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{
-    InitTxArgs, InitTxSendArgs, Slate, SlatepackAddress, WalletInst,
+    InitTxArgs, InitTxSendArgs, Slate, SlateState, SlatepackAddress, WalletInst,
 };
 use grin_core::core::hash::Hashed;
 use grin_core::genesis;
@@ -645,6 +645,27 @@ pub extern "C" fn grin_wallet_cancel(handle: *mut GrinWallet, slate_id: *const c
         global::set_local_chain_type(w.chain_type);
         let slate_id = c_str(slate_id).ok_or("slate_id is null")?;
         let uuid = uuid::Uuid::parse_str(&slate_id).map_err(|e| format!("bad uuid: {e}"))?;
+
+        // Отмена допустима только в безопасном состоянии: до финализации.
+        let (_, txs) = w
+            .owner
+            .retrieve_txs(w.mask.as_ref(), true, None, Some(uuid), None)
+            .map_err(|e| format!("retrieve_txs: {e}"))?;
+        let entry = txs
+            .first()
+            .ok_or_else(|| "транзакция не найдена".to_string())?;
+        if entry.confirmed {
+            return Err("отмена запрещена: транзакция уже подтверждена".into());
+        }
+        if matches!(entry.tx_slate_state, Some(SlateState::Standard3) | Some(SlateState::Invoice3))
+        {
+            return Err(
+                "отмена запрещена: транзакция финализирована и опубликована; \
+                 повторная публикация — repost, отмена — только до финализации"
+                    .into(),
+            );
+        }
+
         w.owner
             .cancel_tx(w.mask.as_ref(), None, Some(uuid))
             .map_err(|e| format!("cancel_tx: {e}"))?;
