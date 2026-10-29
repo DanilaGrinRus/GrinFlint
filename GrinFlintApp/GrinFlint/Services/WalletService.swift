@@ -235,8 +235,8 @@ final class MockWalletService: WalletService {
     }
 
     func estimateFee(destination: String, amountText: String) async throws -> FeeQuote {
-        let dest = destination.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !dest.isEmpty else { throw WalletError.invalidAddress }
+        // В демо комиссия не зависит от адреса: оценка доступна до ввода.
+        _ = destination
         guard let amount = GrinFormat.parse(amountText), amount > 0 else {
             throw WalletError.invalidAmount
         }
@@ -249,8 +249,7 @@ final class MockWalletService: WalletService {
     }
 
     func maxSendable(destination: String) async throws -> MaxSendable {
-        let dest = destination.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !dest.isEmpty else { throw WalletError.invalidAddress }
+        _ = destination
         let fee = Self.demoFee
         let amount = balance.spendable - fee
         guard amount > 0 else {
@@ -320,13 +319,6 @@ final class MockWalletService: WalletService {
             createdAt: Date()
         )
         transactions.insert(record, at: 0)
-        let operation = PendingOperation(
-            id: UUID(), kind: .receive, stage: .prepared,
-            slatepack: "BEGINSLATEPACK.reply", destination: nil,
-            amount: "\(amount)", fee: nil, txID: nil,
-            createdAt: Date(), lastError: nil
-        )
-        update(operation)
         return record
     }
 

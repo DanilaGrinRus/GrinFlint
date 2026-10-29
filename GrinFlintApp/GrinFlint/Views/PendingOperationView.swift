@@ -203,7 +203,7 @@ struct PendingOperationSheet: View {
                 Button(role: .destructive) {
                     showCancelConfirm = true
                 } label: {
-                    Text("Отменить перевод")
+                    Text("Отменить перевод…")
                         .font(.system(size: 14, weight: .semibold))
                 }
                 .accessibilityIdentifier("pending.cancel")

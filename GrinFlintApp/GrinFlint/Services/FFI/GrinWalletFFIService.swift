@@ -226,6 +226,11 @@ actor GrinWalletFFIService: WalletService {
             }, handle: handle)
         } catch {
             operation.lastError = error.localizedDescription
+            // Ошибка post_tx: подпись уже сохранена, доступен repost.
+            // Ошибка разбора/подписи: возвращаемся к ожиданию ответа.
+            if !error.localizedDescription.contains("post_tx") {
+                operation.stage = .requestSent
+            }
             pending.upsert(operation)
             throw error
         }

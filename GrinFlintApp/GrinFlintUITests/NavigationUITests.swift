@@ -364,4 +364,45 @@ final class NavigationUITests: XCTestCase {
             "сканирование не закрылось"
         )
     }
+
+    /// Отмена незавершённого перевода до финализации: после подтверждения
+    /// карточка операции исчезает с портфеля.
+    func testCancelPendingSend() {
+        waitPortfolio()
+        app.buttons["portfolio.send"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Отправить GRIN"].waitForExistence(timeout: 10),
+            "экран отправки не открылся"
+        )
+        let destination = app.textFields["send.destination"]
+        destination.tap()
+        destination.typeText("grin1testaddress")
+        let amount = app.textFields["send.amount"]
+        amount.tap()
+        amount.typeText("1")
+        app.buttons["Создать транзакцию"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Транзакция создана"].waitForExistence(timeout: 15),
+            "транзакция не создалась"
+        )
+        app.buttons["Готово"].tap()
+
+        let card = app.buttons["pending.operation"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "нет карточки незавершённого перевода")
+        card.tap()
+        XCTAssertTrue(
+            app.navigationBars["Незавершённый перевод"].waitForExistence(timeout: 10),
+            "экран продолжения перевода не открылся"
+        )
+
+        app.buttons["pending.cancel"].tap()
+        let confirm = app.buttons["Отменить перевод"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "нет подтверждения отмены")
+        confirm.tap()
+
+        XCTAssertFalse(
+            app.buttons["pending.operation"].waitForExistence(timeout: 5),
+            "карточка отменённой операции осталась на портфеле"
+        )
+    }
 }
