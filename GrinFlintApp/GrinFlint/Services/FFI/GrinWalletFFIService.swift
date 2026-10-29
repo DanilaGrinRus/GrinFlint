@@ -135,7 +135,7 @@ actor GrinWalletFFIService: WalletService {
             maxNano = candidate
         }
         guard maxNano > 0, maxNano < spendable else {
-            throw WalletError.insufficientFunds(needed: fee, available: Self.grin(spendable))
+            throw WalletError.insufficientFunds(needed: Self.grin(fee), available: Self.grin(spendable))
         }
         return MaxSendable(amount: Self.grin(maxNano), fee: Self.grin(fee))
     }
