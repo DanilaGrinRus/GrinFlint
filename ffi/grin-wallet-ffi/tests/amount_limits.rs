@@ -104,15 +104,30 @@ fn amount_and_fee_boundaries() {
             grin_wallet_estimate_fee(h, spendable, cs(address).as_ptr()).is_null(),
             "сумма = spendable должна отклоняться (комиссия сверху)"
         );
+        let e_spendable = last_error();
+        assert!(
+            e_spendable.contains("недостаточно средств") && !e_spendable.contains("panic"),
+            "ожидалась понятная ошибка: {e_spendable}"
+        );
         // больше баланса — отказ
         assert!(
             grin_wallet_estimate_fee(h, spendable + 1, cs(address).as_ptr()).is_null(),
             "сумма > spendable должна отклоняться"
         );
+        let e_over = last_error();
+        assert!(
+            e_over.contains("недостаточно средств") && !e_over.contains("panic"),
+            "ожидалась понятная ошибка: {e_over}"
+        );
         // u64::MAX — отказ без паники
         assert!(
             grin_wallet_estimate_fee(h, u64::MAX, cs(address).as_ptr()).is_null(),
             "u64::MAX должен отклоняться"
+        );
+        let e_max = last_error();
+        assert!(
+            e_max.contains("недостаточно средств") && !e_max.contains("panic"),
+            "ожидалась понятная ошибка: {e_max}"
         );
 
         // реальная комиссия для 1 tGRIN
@@ -139,6 +154,11 @@ fn amount_and_fee_boundaries() {
         assert!(
             grin_wallet_estimate_fee(h, max_amount + 1, cs(address).as_ptr()).is_null(),
             "сумма Max+1 должна отклоняться"
+        );
+        let e_max1 = last_error();
+        assert!(
+            !e_max1.contains("panic"),
+            "Max+1 не должен приводить к панике: {e_max1}"
         );
 
         // Оценки ничего не списывают и не блокируют.

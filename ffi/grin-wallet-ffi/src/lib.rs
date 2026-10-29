@@ -462,6 +462,23 @@ pub extern "C" fn grin_wallet_send(
         let dest = c_str(dest).ok_or("dest is null")?;
         SlatepackAddress::try_from(dest.as_str()).map_err(|e| format!("bad dest: {e}"))?;
 
+        if amount_nanogrin == 0 {
+            return Err("сумма должна быть больше нуля".into());
+        }
+        // Предварительная проверка списываемого баланса: без неё
+        // init_send_tx при сумме >= spendable паникует внутри выбора входов,
+        // и наружу уходило «panic in …» вместо понятной причины.
+        let (_updated, info) = w
+            .owner
+            .retrieve_summary_info(w.mask.as_ref(), false, 2)
+            .map_err(|e| format!("баланс: {e}"))?;
+        let spendable = info.amount_currently_spendable;
+        if amount_nanogrin >= spendable {
+            return Err(format!(
+                "недостаточно средств: сумма {amount_nanogrin} наногрин + комиссия, доступно {spendable}"
+            ));
+        }
+
         let args = InitTxArgs {
             src_acct_name: None,
             amount: amount_nanogrin,
@@ -768,6 +785,23 @@ pub extern "C" fn grin_wallet_estimate_fee(
         global::set_local_chain_type(w.chain_type);
         let dest = c_str(dest).ok_or("dest is null")?;
         SlatepackAddress::try_from(dest.as_str()).map_err(|e| format!("bad dest: {e}"))?;
+
+        if amount_nanogrin == 0 {
+            return Err("сумма должна быть больше нуля".into());
+        }
+        // Предварительная проверка списываемого баланса: без неё
+        // init_send_tx при сумме >= spendable паникует внутри выбора входов,
+        // и наружу уходило «panic in …» вместо понятной причины.
+        let (_updated, info) = w
+            .owner
+            .retrieve_summary_info(w.mask.as_ref(), false, 2)
+            .map_err(|e| format!("баланс: {e}"))?;
+        let spendable = info.amount_currently_spendable;
+        if amount_nanogrin >= spendable {
+            return Err(format!(
+                "недостаточно средств: сумма {amount_nanogrin} наногрин + комиссия, доступно {spendable}"
+            ));
+        }
 
         let args = InitTxArgs {
             src_acct_name: None,
