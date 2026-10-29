@@ -397,13 +397,13 @@ jobs:
           # UTF-8 литерал Rust-крейта через python3 (macOS grep -a на этом
           # бинаре не находит многобайтовую строку).
           python3 - "$APP/GrinFlint" <<'PY'
-import sys
+          import sys
 
-data = open(sys.argv[1], 'rb').read()
-if 'недостаточно средств: сумма'.encode('utf-8') not in data:
-    sys.exit('в Release-бинарь не попал FFI grin-wallet')
-print('FFI grin-wallet в Release-бинаре: найден')
-PY
+          data = open(sys.argv[1], 'rb').read()
+          if 'недостаточно средств: сумма'.encode('utf-8') not in data:
+              sys.exit('в Release-бинарь не попал FFI grin-wallet')
+          print('FFI grin-wallet в Release-бинаре: найден')
+          PY
           {
             echo "commit: ${GITHUB_SHA}"
             echo "run: ${GITHUB_RUN_ID}"
