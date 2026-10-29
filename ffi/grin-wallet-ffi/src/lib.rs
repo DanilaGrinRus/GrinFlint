@@ -13,7 +13,7 @@ use grin_wallet_api::{Foreign, Owner};
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{
-    InitTxArgs, InitTxSendArgs, SlatepackAddress, WalletInst,
+    InitTxArgs, InitTxSendArgs, Slate, SlatepackAddress, WalletInst,
 };
 use grin_core::core::hash::Hashed;
 use grin_core::genesis;
@@ -47,6 +47,27 @@ fn wallet_mut<'a>(handle: *mut GrinWallet) -> Result<&'a mut GrinWallet, String>
     // SAFETY: NULL отсекается до разыменования; ссылка живёт только на время
     // вызова FFI-функции.
     unsafe { handle.as_mut() }.ok_or_else(|| "handle is null".into())
+}
+
+/// Каталог сохранённых подписанных транзакций для повторной публикации.
+fn repost_dir(w: &GrinWallet) -> std::path::PathBuf {
+    w.config_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("repost")
+}
+
+/// Сохраняет уже подписанную транзакцию ДО публикации: при сбое сети её
+/// можно опубликовать повторно без повторной подписи.
+fn store_repost_slate(w: &GrinWallet, slate: &Slate) -> Result<(), String> {
+    let dir = repost_dir(w);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("каталог {}: {e}", dir.display()))?;
+    let path = dir.join(format!("{}.json", slate.id));
+    let json = serde_json::to_string(slate).map_err(|e| format!("сериализация tx: {e}"))?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, json).map_err(|e| format!("запись {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("переименование {}: {e}", path.display()))?;
+    Ok(())
 }
 
 thread_local! {
@@ -563,6 +584,9 @@ pub extern "C" fn grin_wallet_finalize(
             .owner
             .finalize_tx(w.mask.as_ref(), &slate)
             .map_err(|e| format!("finalize_tx: {e}"))?;
+        // Сначала фиксируем подписанную tx на диске: если post_tx упадёт,
+        // её можно опубликовать снова без повторной подписи.
+        store_repost_slate(w, &finalized)?;
         w.owner
             .post_tx(w.mask.as_ref(), &finalized, true)
             .map_err(|e| format!("post_tx: {e}"))?;
@@ -576,6 +600,38 @@ pub extern "C" fn grin_wallet_finalize(
         }
         Err(_) => {
             set_error(panic_error("grin_wallet_finalize"));
+            -1
+        }
+    }
+}
+
+/// Повторная публикация уже подписанной транзакции по slate_id.
+/// Ничего не подписывает: читает сохранённый Slate и отправляет его в ноду.
+#[no_mangle]
+pub extern "C" fn grin_wallet_repost(handle: *mut GrinWallet, slate_id: *const c_char) -> i32 {
+    let result = guarded(|| -> Result<(), String> {
+        let w = wallet_mut(handle)?;
+        global::set_local_chain_type(w.chain_type);
+        let slate_id = c_str(slate_id).ok_or("slate_id is null")?;
+        let uuid = uuid::Uuid::parse_str(&slate_id).map_err(|e| format!("bad uuid: {e}"))?;
+        let path = repost_dir(w).join(format!("{uuid}.json"));
+        let json = std::fs::read_to_string(&path)
+            .map_err(|e| format!("нет сохранённой tx {}: {e}", path.display()))?;
+        let slate = Slate::deserialize_upgrade(&json)
+            .map_err(|e| format!("сохранённая tx повреждена: {e}"))?;
+        w.owner
+            .post_tx(w.mask.as_ref(), &slate, true)
+            .map_err(|e| format!("post_tx: {e}"))?;
+        Ok(())
+    });
+    match result {
+        Ok(Ok(())) => 0,
+        Ok(Err(e)) => {
+            set_error(e);
+            -1
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_repost"));
             -1
         }
     }

@@ -71,6 +71,10 @@ char *grin_wallet_chain_genesis(const char *chain);
  * Возвращает {"fee":<u64>,"total":<u64>}; NULL — ошибка. */
 char *grin_wallet_estimate_fee(GrinWallet *handle, uint64_t amount_nanogrin, const char *dest);
 
+/* Повторная публикация уже подписанной tx по slate_id (без подписи).
+ * 0 — отправлено, -1 — ошибка (grin_last_error). */
+int32_t grin_wallet_repost(GrinWallet *handle, const char *slate_id);
+
 /* Точный разбор суммы по общему контракту (до 9 знаков, без переполнения).
  * Возвращает {"nano":<u64>,"display":"..."}; NULL — ошибка. */
 char *grin_wallet_parse_amount(const char *text);
