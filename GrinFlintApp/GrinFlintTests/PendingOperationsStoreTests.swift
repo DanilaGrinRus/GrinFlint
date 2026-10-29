@@ -16,11 +16,15 @@ final class PendingOperationsStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    private func sendOperation(amount: String = "1", created: Date = Date()) -> PendingOperation {
+    private func sendOperation(
+        stage: PendingOperationStage = .prepared,
+        amount: String = "1",
+        created: Date = Date()
+    ) -> PendingOperation {
         PendingOperation(
             id: UUID(),
             kind: .send,
-            stage: .awaitingResponse,
+            stage: stage,
             slatepack: "BEGINSLATEPACK.send",
             destination: "grin1receiver",
             amount: amount,
@@ -35,7 +39,7 @@ final class PendingOperationsStoreTests: XCTestCase {
         PendingOperation(
             id: UUID(),
             kind: .receive,
-            stage: .responseReady,
+            stage: .prepared,
             slatepack: "BEGINSLATEPACK.reply",
             destination: nil,
             amount: nil,
@@ -47,7 +51,7 @@ final class PendingOperationsStoreTests: XCTestCase {
     }
 
     func testOperationSurvivesStoreRecreation() {
-        let operation = sendOperation()
+        let operation = sendOperation(stage: .requestSent)
         let store = PendingOperationsStore(directory: directory)
         store.upsert(operation)
 
@@ -56,10 +60,10 @@ final class PendingOperationsStoreTests: XCTestCase {
         XCTAssertEqual(reopened.operations.count, 1)
         XCTAssertEqual(reopened.latest?.id, operation.id)
         XCTAssertEqual(reopened.latest?.slatepack, operation.slatepack)
-        XCTAssertEqual(reopened.latest?.stage, .awaitingResponse)
+        XCTAssertEqual(reopened.latest?.stage, .requestSent)
     }
 
-    func testAwaitingSendPrefersLatestUnfinishedSend() {
+    func testUnfinishedSendPrefersLatestUnfinishedSend() {
         let store = PendingOperationsStore(directory: directory)
         let old = sendOperation(created: Date().addingTimeInterval(-60))
         let recent = sendOperation(created: Date())
@@ -68,15 +72,39 @@ final class PendingOperationsStoreTests: XCTestCase {
         store.upsert(received)
         store.upsert(recent)
 
-        XCTAssertEqual(store.awaitingSend?.id, recent.id)
+        XCTAssertEqual(store.unfinishedSend?.id, recent.id)
         XCTAssertEqual(store.latest?.id, received.id)
+    }
+
+    func testPostedSendDoesNotBlockNewSend() {
+        let store = PendingOperationsStore(directory: directory)
+        store.upsert(sendOperation(stage: .posted))
+        XCTAssertNil(store.unfinishedSend)
+        // Опубликованная, но не подтверждённая операция остаётся активной.
+        XCTAssertNotNil(store.active)
+    }
+
+    func testFinalizedSendStillBlocksNewSend() {
+        let store = PendingOperationsStore(directory: directory)
+        store.upsert(sendOperation(stage: .finalized))
+        XCTAssertNotNil(store.unfinishedSend, "подписанная, но не опубликованная tx должна блокировать новую отправку")
     }
 
     func testCompletedReceiveIsNotAwaitingSend() {
         let store = PendingOperationsStore(directory: directory)
         store.upsert(receiveOperation())
-        XCTAssertNil(store.awaitingSend)
-        XCTAssertNotNil(store.latest)
+        XCTAssertNil(store.unfinishedSend)
+        XCTAssertNotNil(store.active)
+    }
+
+    func testTerminalStagesAreNotActive() {
+        let store = PendingOperationsStore(directory: directory)
+        store.upsert(sendOperation(stage: .confirmed))
+        XCTAssertNil(store.active)
+        XCTAssertNotNil(store.latest, "терминальная запись остаётся в журнале")
+
+        store.upsert(sendOperation(stage: .cancelled))
+        XCTAssertNil(store.active)
     }
 
     func testRemoveDropsOperation() {
@@ -95,6 +123,7 @@ final class PendingOperationsStoreTests: XCTestCase {
         store.upsert(operation)
 
         XCTAssertEqual(store.operation(txID: operation.txID ?? "")?.id, operation.id)
+        XCTAssertEqual(store.operation(id: operation.id)?.id, operation.id)
         XCTAssertNil(store.operation(txID: "unknown"))
     }
 
@@ -108,18 +137,42 @@ final class PendingOperationsStoreTests: XCTestCase {
     }
 
     func testCodableRoundTripKeepsAllFields() throws {
-        let operation = sendOperation()
+        let operation = sendOperation(stage: .finalized)
         let data = try JSONEncoder().encode(operation)
         let decoded = try JSONDecoder().decode(PendingOperation.self, from: data)
         XCTAssertEqual(decoded, operation)
     }
 
-    func testStageTitlesAreUserFacing() {
-        XCTAssertFalse(PendingOperationStage.awaitingResponse.title.isEmpty)
-        XCTAssertFalse(PendingOperationStage.responseReady.title.isEmpty)
-        XCTAssertNotEqual(
-            PendingOperationStage.awaitingResponse.title,
-            PendingOperationStage.responseReady.title
-        )
+    /// Записи прежних сборок (`awaitingResponse`/`responseReady`) читаются
+    /// как prepared — старый журнал не теряется при обновлении приложения.
+    func testLegacySendStageDecodesAsPrepared() throws {
+        let data = try JSONEncoder().encode(sendOperation(stage: .prepared))
+        let json = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "\"prepared\"", with: "\"awaitingResponse\"")
+        let decoded = try JSONDecoder().decode(PendingOperation.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.stage, .prepared)
+    }
+
+    func testLegacyReceiveStageDecodesAsPrepared() throws {
+        let data = try JSONEncoder().encode(receiveOperation())
+        let json = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "\"prepared\"", with: "\"responseReady\"")
+        let decoded = try JSONDecoder().decode(PendingOperation.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.stage, .prepared)
+    }
+
+    func testStageTitlesAndDetailsAreUserFacing() {
+        for stage in PendingOperationStage.allCases {
+            XCTAssertFalse(stage.title.isEmpty, "\(stage): пустой заголовок")
+            XCTAssertFalse(stage.detail.isEmpty, "\(stage): пустое пояснение")
+        }
+        XCTAssertNotEqual(PendingOperationStage.prepared.title, PendingOperationStage.posted.title)
+        XCTAssertTrue(PendingOperationStage.confirmed.isTerminal)
+        XCTAssertTrue(PendingOperationStage.cancelled.isTerminal)
+        XCTAssertFalse(PendingOperationStage.finalized.isTerminal)
+        XCTAssertTrue(PendingOperationStage.finalized.blocksNewSend)
+        XCTAssertFalse(PendingOperationStage.posted.blocksNewSend)
+        XCTAssertTrue(PendingOperationStage.requestSent.acceptsResponse)
+        XCTAssertFalse(PendingOperationStage.finalized.acceptsResponse)
     }
 }

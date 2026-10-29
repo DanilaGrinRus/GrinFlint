@@ -11,7 +11,8 @@ import Foundation
 ///   )
 ///   WalletViewModel(service: service)
 ///
-/// ВНИМАНИЕ: пароль пока хранится в памяти актора (этап 3: Keychain + Face ID).
+/// Пароль шифрования БД приходит из Keychain (см. WalletFactory);
+/// в памяти актора он живёт только на время сессии.
 actor GrinWalletFFIService: WalletService {
     enum Chain: String {
         case mainnet
@@ -43,7 +44,7 @@ actor GrinWalletFFIService: WalletService {
     }
 
     /// Незавершённый перевод для экрана портфеля.
-    var pendingOperation: PendingOperation? { pending.latest }
+    var pendingOperation: PendingOperation? { pending.active }
 
     func dismissPending(id: UUID) async {
         pending.remove(id: id)
@@ -89,26 +90,65 @@ actor GrinWalletFFIService: WalletService {
             grin_wallet_txs(h.raw)
         }, handle: handle, as: GrinTxsResult.self)
         transactions = t.txs.map(Self.mapTx)
+        reconcilePending()
     }
 
-    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
+    /// Реальная комиссия backend до подписания (estimate_only).
+    func estimateFee(destination: String, amountText: String) async throws -> FeeQuote {
+        let nano = try Self.parseNano(amountText)
+        let dest = try resolvedDestination(destination)
+        let estimate: GrinFeeEstimate = try GrinFFI.call({ h in
+            grin_wallet_estimate_fee(h.raw, nano, dest)
+        }, handle: handle, as: GrinFeeEstimate.self)
+        return FeeQuote(
+            amount: Self.grin(nano),
+            fee: Self.grin(estimate.fee),
+            total: Self.grin(estimate.total)
+        )
+    }
+
+    /// Максимум к отправке: spendable минус комиссия выбранных входов.
+    /// Комиссия берётся из оценки backend (не выдуманный тариф).
+    func maxSendable(destination: String) async throws -> MaxSendable {
+        let dest = try resolvedDestination(destination)
+        let b: GrinBalanceResult = try GrinFFI.call({ h in
+            grin_wallet_balance(h.raw, 0)
+        }, handle: handle, as: GrinBalanceResult.self)
+        let spendable = b.spendable
+        guard spendable > 1 else {
+            throw WalletError.insufficientFunds(needed: 1, available: Self.grin(spendable))
+        }
+        // Оценка для максимальной суммы: при выборе всех входов комиссия та же,
+        // что и для суммы на 1 наногрин меньше баланса.
+        var maxNano = spendable - 1
+        var fee: UInt64 = 0
+        for _ in 0..<3 {
+            let estimate: GrinFeeEstimate = try GrinFFI.call({ h in
+                grin_wallet_estimate_fee(h.raw, maxNano, dest)
+            }, handle: handle, as: GrinFeeEstimate.self)
+            fee = estimate.fee
+            guard fee > 0, fee < spendable else {
+                throw WalletError.operationState("комиссия не укладывается в баланс")
+            }
+            let candidate = spendable - fee
+            if candidate == maxNano { break }
+            maxNano = candidate
+        }
+        guard maxNano > 0, maxNano < spendable else {
+            throw WalletError.insufficientFunds(needed: fee, available: Self.grin(spendable))
+        }
+        return MaxSendable(amount: Self.grin(maxNano), fee: Self.grin(fee))
+    }
+
+    func prepareSend(destination: String, amountText: String) async throws -> SendProposal {
         // Один незавершённый перевод за раз: повторный вызов подписал бы
         // вторую транзакцию и задвоил операцию.
-        if let awaiting = pending.awaitingSend {
+        if let awaiting = pending.unfinishedSend {
             throw WalletError.pendingOperationExists(awaiting.stage.title)
         }
         // Сумму разбирает общий Rust-контракт: 9 знаков, без усечения и
         // переполнения. Ошибка возвращается, а не превращается в 0.
-        let parsed: GrinAmountResult
-        do {
-            parsed = try GrinFFI.callStandalone(
-                { grin_wallet_parse_amount(amountText) },
-                as: GrinAmountResult.self
-            )
-        } catch {
-            throw WalletError.invalidAmount
-        }
-        let nano = parsed.nano
+        let nano = try Self.parseNano(amountText)
         let amount = Self.grin(nano)
         let dest = destination.trimmingCharacters(in: .whitespaces)
         guard !dest.isEmpty else { throw WalletError.invalidAddress }
@@ -118,7 +158,7 @@ actor GrinWalletFFIService: WalletService {
         let operation = PendingOperation(
             id: UUID(),
             kind: .send,
-            stage: .awaitingResponse,
+            stage: .prepared,
             slatepack: result.slatepack,
             destination: dest,
             amount: "\(amount)",
@@ -145,7 +185,7 @@ actor GrinWalletFFIService: WalletService {
         let operation = PendingOperation(
             id: UUID(),
             kind: .receive,
-            stage: .responseReady,
+            stage: .prepared,
             slatepack: result.slatepack,
             destination: nil,
             amount: nil,
@@ -164,20 +204,90 @@ actor GrinWalletFFIService: WalletService {
     }
 
     /// Финализировать полученный от контрагента slatepack-ответ и запостить в сеть.
+    ///
+    /// Стадия `finalized` фиксируется на диске ДО вызова FFI: если публикация
+    /// не прошла, подписанная транзакция сохранена и доступна для repost
+    /// без новой подписи.
     func finalize(slatepackResponse: String) async throws {
-        try GrinFFI.callStatus({ h in
-            grin_wallet_finalize(h.raw, slatepackResponse)
-        }, handle: handle)
-        // Подпись прошла: запись о незавершённой отправке больше не нужна.
-        if let awaiting = pending.awaitingSend {
-            pending.remove(id: awaiting.id)
+        guard var operation = pending.unfinishedSend else {
+            // Нет записи в журнале — публикуем напрямую, без стадий.
+            try GrinFFI.callStatus({ h in
+                grin_wallet_finalize(h.raw, slatepackResponse)
+            }, handle: handle)
+            return
         }
+        operation.stage = .finalized
+        operation.lastError = nil
+        pending.upsert(operation)
+
+        do {
+            try GrinFFI.callStatus({ h in
+                grin_wallet_finalize(h.raw, slatepackResponse)
+            }, handle: handle)
+        } catch {
+            operation.lastError = error.localizedDescription
+            pending.upsert(operation)
+            throw error
+        }
+
+        operation.stage = .posted
+        operation.lastError = nil
+        pending.upsert(operation)
     }
 
-    func cancel(slateID: String) async throws {
-        try GrinFFI.callStatus({ h in
-            grin_wallet_cancel(h.raw, slateID)
-        }, handle: handle)
+    /// Отметить, что запрос передан получателю (prepared → requestSent).
+    func markRequestSent(id: UUID) async {
+        guard var operation = pending.operation(id: id), operation.stage == .prepared else { return }
+        operation.stage = .requestSent
+        pending.upsert(operation)
+    }
+
+    /// Отмена допустима только до финализации; после подписи — только repost.
+    func cancel(operationID: UUID) async throws {
+        guard var operation = pending.operation(id: operationID),
+              operation.kind == .send,
+              let slateID = operation.txID else {
+            throw WalletError.operationState("операция не найдена")
+        }
+        guard operation.stage.acceptsResponse else {
+            throw WalletError.operationState("отмена возможна только до финализации")
+        }
+        do {
+            try GrinFFI.callStatus({ h in
+                grin_wallet_cancel(h.raw, slateID)
+            }, handle: handle)
+        } catch {
+            operation.lastError = error.localizedDescription
+            pending.upsert(operation)
+            throw error
+        }
+        operation.stage = .cancelled
+        operation.lastError = nil
+        pending.upsert(operation)
+    }
+
+    /// Повторная публикация уже подписанной транзакции (без новой подписи).
+    func repost(operationID: UUID) async throws {
+        guard var operation = pending.operation(id: operationID),
+              operation.kind == .send,
+              let slateID = operation.txID else {
+            throw WalletError.operationState("операция не найдена")
+        }
+        guard operation.stage == .finalized else {
+            throw WalletError.operationState("повтор публикации доступен только после подписи")
+        }
+        do {
+            try GrinFFI.callStatus({ h in
+                grin_wallet_repost(h.raw, slateID)
+            }, handle: handle)
+        } catch {
+            operation.lastError = error.localizedDescription
+            pending.upsert(operation)
+            throw error
+        }
+        operation.stage = .posted
+        operation.lastError = nil
+        pending.upsert(operation)
     }
 
     func exportSlatepack(txID: UUID) async -> String? {
@@ -187,10 +297,50 @@ actor GrinWalletFFIService: WalletService {
         return pending.latest?.slatepack ?? transactions.first { $0.id == txID }?.slatepack
     }
 
-    // MARK: маппинг
+    // MARK: журнал и маппинг
 
-    private static func nano(_ grin: Decimal) -> UInt64 {
-        UInt64(truncating: (grin * 1_000_000_000) as NSDecimalNumber)
+    /// Подтверждение/отмена, замеченные в истории grin-wallet, двигают стадию.
+    private func reconcilePending() {
+        for var operation in pending.operations
+        where operation.kind == .send && !operation.stage.isTerminal {
+            guard let txID = operation.txID,
+                  let tx = transactions.first(where: {
+                      $0.id.uuidString.caseInsensitiveCompare(txID) == .orderedSame
+                  }) else { continue }
+            switch tx.status {
+            case .confirmed:
+                operation.stage = .confirmed
+                operation.lastError = nil
+                pending.upsert(operation)
+            case .reverted:
+                operation.stage = .cancelled
+                operation.lastError = nil
+                pending.upsert(operation)
+            case .unconfirmed, .failed:
+                break
+            }
+        }
+    }
+
+    /// Сумма из текста: точный разбор общим Rust-контрактом.
+    private static func parseNano(_ amountText: String) throws -> UInt64 {
+        do {
+            let parsed: GrinAmountResult = try GrinFFI.callStandalone(
+                { grin_wallet_parse_amount(amountText) },
+                as: GrinAmountResult.self
+            )
+            return parsed.nano
+        } catch {
+            throw WalletError.invalidAmount
+        }
+    }
+
+    /// Адрес получателя; пустой — свой адрес (для оценки комиссии до ввода).
+    private func resolvedDestination(_ destination: String) throws -> String {
+        let trimmed = destination.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        guard !slatepackAddress.isEmpty else { throw WalletError.invalidAddress }
+        return slatepackAddress
     }
 
     private static func grin(_ nano: UInt64) -> Decimal {

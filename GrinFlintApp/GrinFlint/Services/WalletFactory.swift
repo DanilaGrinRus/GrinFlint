@@ -1,5 +1,9 @@
 import Foundation
 
+#if !GRINFFI && !DEBUG
+#error("Release-сборка GrinFlint требует GRINFFI: без настоящего кошелька RC не выпускается.")
+#endif
+
 /// Фабрика блокчейн-сервиса.
 ///
 /// GRINFFI-режим (сборка в CI с XCFramework): настоящий кошелёк grin-wallet

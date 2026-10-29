@@ -125,6 +125,12 @@ struct GrinSendResult: Decodable {
     let fee: UInt64
 }
 
+/// Оценка комиссии до подписания: `fee` и итоговое списание `total`.
+struct GrinFeeEstimate: Decodable {
+    let fee: UInt64
+    let total: UInt64
+}
+
 struct GrinReceiveResult: Decodable {
     let slatepack: String
 }

@@ -39,37 +39,18 @@ struct Balance: Equatable {
     static let zero = Balance(spendable: 0, awaiting: 0, locked: 0)
 }
 
-/// Тариф комиссии (упрощённо: 1/2/3 как в grin-wallet).
-enum FeeTier: Int, CaseIterable, Identifiable {
-    case slow = 1
-    case standard = 2
-    case fast = 3
+/// Реальная оценка комиссии от grin-wallet (`estimate_only`, без блокировки
+/// средств). Комиссия считается по выбранным входам до подписания.
+struct FeeQuote: Equatable {
+    var amount: Decimal
+    var fee: Decimal
+    var total: Decimal
+}
 
-    var id: Int { rawValue }
-
-    var title: String {
-        switch self {
-        case .slow: return "Медленно"
-        case .standard: return "Стандарт"
-        case .fast: return "Быстро"
-        }
-    }
-
-    var fee: Decimal {
-        switch self {
-        case .slow: return Decimal(string: "0.001")!
-        case .standard: return Decimal(string: "0.003")!
-        case .fast: return Decimal(string: "0.008")!
-        }
-    }
-
-    var eta: String {
-        switch self {
-        case .slow: return "~1 час"
-        case .standard: return "~10 мин"
-        case .fast: return "~1 мин"
-        }
-    }
+/// Максимум к отправке с учётом настоящей комиссии.
+struct MaxSendable: Equatable {
+    var amount: Decimal
+    var fee: Decimal
 }
 
 /// Запись транзакции в истории.
@@ -111,6 +92,9 @@ enum WalletError: LocalizedError {
     /// Есть незавершённый перевод: второй не создаём, чтобы не подписать
     /// повторно и не задвоить операцию.
     case pendingOperationExists(String)
+    /// Действие недоступно на текущей стадии операции (например, отмена
+    /// после финализации или повтор публикации до подписи).
+    case operationState(String)
 
     var errorDescription: String? {
         switch self {
@@ -134,6 +118,8 @@ enum WalletError: LocalizedError {
             return String(
                 localized: "Есть незавершённый перевод: \(details). Завершите его — повторная подпись не создаётся."
             )
+        case .operationState(let details):
+            return String(localized: "Действие недоступно: \(details).")
         }
     }
 }
@@ -156,6 +142,18 @@ enum GrinFormat {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 4
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: number) ?? "0"
+    }
+
+    /// Сумма без суффикса «GRIN» — для подстановки в поле ввода (до 9 знаков).
+    static func amount(_ value: Decimal) -> String {
+        let number = value as NSDecimalNumber
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 9
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter.string(from: number) ?? "0"
     }

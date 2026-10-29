@@ -9,15 +9,21 @@ struct SendFlowView: View {
 
     @State private var destination = ""
     @State private var amountText = ""
-    @State private var feeTier: FeeTier = .standard
     @State private var proposal: SendProposal?
     @State private var isWorking = false
     @State private var sendError: String?
     @State private var isScanning = false
+    @State private var feeQuote: FeeQuote?
+    @State private var feeError: String?
+    @State private var isEstimatingFee = false
+    @State private var isComputingMax = false
 
     private var parsedAmount: Decimal? { GrinFormat.parse(amountText) }
     private var trimmedDestination: String { destination.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canProceed: Bool { parsedAmount != nil && !trimmedDestination.isEmpty }
+
+    /// Пересчитываем комиссию при изменении суммы/адреса (с задержкой ввода).
+    private var feeEstimateKey: String { "\(amountText)|\(trimmedDestination)" }
 
     var body: some View {
         ScrollView {
@@ -43,6 +49,9 @@ struct SendFlowView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle("Отправить GRIN")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: feeEstimateKey) {
+            await updateFeeEstimate()
+        }
         .sheet(item: $proposal) { proposal in
             SendResultSheet(
                 proposal: proposal,
@@ -156,50 +165,109 @@ struct SendFlowView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.textSecondary)
                     Spacer()
-                    Button("Максимум") {
-                        amountText = GrinFormat.short(viewModel.balance.spendable - feeTier.fee)
+                    Button {
+                        Task { await useMax() }
+                    } label: {
+                        if isComputingMax {
+                            ProgressView().controlSize(.small).tint(Theme.accent)
+                        } else {
+                            Text("Максимум")
+                        }
                     }
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.accent)
+                    .disabled(isComputingMax)
+                    .accessibilityIdentifier("send.max")
                 }
             }
         }
     }
 
+    /// Реальная комиссия backend; тарифов и «оценки времени» нет — в
+    /// Mimblewimble комиссия не влияет на скорость подтверждения.
     private var feeSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Комиссия сети")
-            HStack(spacing: 10) {
-                ForEach(FeeTier.allCases) { tier in
-                    Button {
-                        feeTier = tier
-                    } label: {
-                        VStack(spacing: 6) {
-                            Text(tier.title)
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("\(GrinFormat.short(tier.fee)) GRIN")
-                                .font(Theme.mono(12))
-                            Text(tier.eta)
-                                .font(.system(size: 11))
-                        }
-                        .foregroundStyle(feeTier == tier ? .black : Theme.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(feeTier == tier ? Theme.accent : Theme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(feeTier == tier ? Color.clear : Theme.stroke, lineWidth: 1)
-                        )
+        GrinCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Комиссия сети")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    if isEstimatingFee {
+                        ProgressView().controlSize(.small).tint(Theme.accent)
+                    } else if let feeQuote {
+                        Text(GrinFormat.grin(feeQuote.fee))
+                            .font(Theme.mono(13))
+                            .foregroundStyle(Theme.textPrimary)
+                    } else {
+                        Text("—")
+                            .font(Theme.mono(13))
+                            .foregroundStyle(Theme.textTertiary)
                     }
-                    .buttonStyle(.plain)
                 }
+                if let feeQuote {
+                    HStack {
+                        Text("Итого")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textSecondary)
+                        Spacer()
+                        Text(GrinFormat.grin(feeQuote.total))
+                            .font(Theme.mono(13, weight: .semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                }
+                if let feeError {
+                    Text(feeError)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.warning)
+                }
+                Text("Комиссия рассчитывается кошельком до подписания и списывается сверху.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textTertiary)
             }
+        }
+    }
+
+    /// Пересчёт комиссии с небольшой задержкой (не дёргаем backend на каждый символ).
+    private func updateFeeEstimate() async {
+        guard parsedAmount != nil else {
+            feeQuote = nil
+            feeError = nil
+            return
+        }
+        isEstimatingFee = true
+        defer { isEstimatingFee = false }
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        if Task.isCancelled { return }
+        do {
+            feeQuote = try await viewModel.estimateFee(
+                destination: trimmedDestination,
+                amountText: amountText
+            )
+            feeError = nil
+        } catch {
+            feeQuote = nil
+            feeError = error.localizedDescription
+        }
+    }
+
+    /// Максимум = доступно минус реальная комиссия (оценка backend).
+    private func useMax() async {
+        guard !isComputingMax else { return }
+        isComputingMax = true
+        defer { isComputingMax = false }
+        do {
+            let max = try await viewModel.maxSendable(destination: trimmedDestination)
+            amountText = GrinFormat.amount(max.amount)
+            feeQuote = FeeQuote(amount: max.amount, fee: max.fee, total: max.amount + max.fee)
+            feeError = nil
+        } catch {
+            feeError = error.localizedDescription
         }
     }
 
     private func prepare() async {
-        guard let amount = parsedAmount else { return }
+        guard parsedAmount != nil else { return }
         // Подпись транзакции защищена биометрией (Фаза 2).
         if WalletLock.isProtectionEnabled {
             do {
@@ -214,8 +282,7 @@ struct SendFlowView: View {
         do {
             proposal = try await viewModel.prepareSend(
                 destination: trimmedDestination,
-                amountText: amountText,
-                feeTier: feeTier
+                amountText: amountText
             )
         } catch let error as WalletError {
             sendError = error.localizedDescription
@@ -241,10 +308,10 @@ struct SendResultSheet: View {
 
     private var stageText: String {
         if isFinished {
-            return "Этап 3 из 3: перевод отправлен в сеть"
+            return "Транзакция подписана и опубликована в сети"
         }
         if requiresFinalize {
-            return "Этап 2 из 3: передайте запрос получателю и вставьте его ответ ниже"
+            return "Запрос создан. Передайте его получателю и вставьте ответный Slatepack ниже."
         }
         return "Демо-режим: запрос не уходит в сеть"
     }

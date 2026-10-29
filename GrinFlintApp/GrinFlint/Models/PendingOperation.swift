@@ -9,20 +9,83 @@ enum PendingOperationKind: String, Codable {
     case receive
 }
 
-enum PendingOperationStage: String, Codable {
-    /// send: запрос создан, ответ ещё не получен.
-    case awaitingResponse
-    /// receive: ответный Slatepack готов, его нужно передать отправителю.
-    case responseReady
+/// Стадии операции. Исходящая проходит:
+/// prepared → requestSent → finalized → posted → confirmed;
+/// отмена возможна только до финализации (cancelled — терминальное состояние).
+enum PendingOperationStage: String, Codable, CaseIterable {
+    /// Запрос создан, средства заблокированы; получателю ещё не передан.
+    case prepared
+    /// Запрос передан получателю, ждём ответный Slatepack.
+    case requestSent
+    /// Ответ получен, транзакция подписана; публикация могла не пройти.
+    /// В этом состоянии доступен повтор публикации (repost) без новой подписи.
+    case finalized
+    /// Подписанная транзакция опубликована в ноду.
+    case posted
+    /// Транзакция подтверждена в блоке.
+    case confirmed
+    /// Отменена до финализации, заблокированные средства освобождены.
+    case cancelled
+
+    /// Записи прежних сборок: send ждал ответа, receive готовил ответ.
+    /// Обе соответствуют `prepared` — повторной подписи не происходит.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "awaitingResponse", "responseReady":
+            self = .prepared
+        default:
+            guard let stage = PendingOperationStage(rawValue: raw) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "неизвестная стадия операции: \(raw)"
+                )
+            }
+            self = stage
+        }
+    }
 
     var title: String {
         switch self {
-        case .awaitingResponse:
-            return "Ждём ответ получателя"
-        case .responseReady:
-            return "Ответ готов — передайте отправителю"
+        case .prepared: return "Запрос создан"
+        case .requestSent: return "Запрос передан получателю"
+        case .finalized: return "Транзакция подписана"
+        case .posted: return "Опубликована в сети"
+        case .confirmed: return "Подтверждена"
+        case .cancelled: return "Отменена"
         }
     }
+
+    /// Пояснение этапа и доступных действий (без технического жаргона).
+    var detail: String {
+        switch self {
+        case .prepared:
+            return "Передайте Slatepack получателю. Отмена возможна до финализации."
+        case .requestSent:
+            return "Ждём ответный Slatepack. Отмена возможна до финализации."
+        case .finalized:
+            return "Подпись готова. Если публикация не прошла, повторите её — новая подпись не потребуется."
+        case .posted:
+            return "Транзакция отправлена в сеть, ждём подтверждения в блоке."
+        case .confirmed:
+            return "Транзакция подтверждена в блоке."
+        case .cancelled:
+            return "Перевод отменён, заблокированные средства освобождены."
+        }
+    }
+
+    /// Терминальные стадии не показываются как незавершённая операция.
+    var isTerminal: Bool { self == .confirmed || self == .cancelled }
+
+    /// Исходящий перевод, для которого ещё нужна подпись или публикация:
+    /// второй такой запрос не создаём, чтобы не задвоить операцию.
+    var blocksNewSend: Bool {
+        self == .prepared || self == .requestSent || self == .finalized
+    }
+
+    /// Ответный Slatepack принимается, пока перевод не подписан.
+    var acceptsResponse: Bool { self == .prepared || self == .requestSent }
 }
 
 struct PendingOperation: Identifiable, Codable, Equatable {
@@ -34,12 +97,17 @@ struct PendingOperation: Identifiable, Codable, Equatable {
     var destination: String?
     var amount: String?
     var fee: String?
+    /// Для send — slate_id транзакции (uuid строка из grin-wallet).
     var txID: String?
     var createdAt: Date
     var lastError: String?
 
     var amountDecimal: Decimal? {
         amount.flatMap { Decimal(string: $0) }
+    }
+
+    var feeDecimal: Decimal? {
+        fee.flatMap { Decimal(string: $0) }
     }
 }
 
@@ -58,18 +126,30 @@ final class PendingOperationsStore {
         load()
     }
 
-    /// Самая свежая незавершённая операция.
+    /// Самая свежая операция (включая терминальные — для журнала/диагностики).
     var latest: PendingOperation? {
         operations.sorted { $0.createdAt > $1.createdAt }.first
     }
 
-    /// Исходящая операция, ожидающая ответа (одна за раз — предотвращает
-    /// повторную подпись и дублирование переводов).
-    var awaitingSend: PendingOperation? {
+    /// Самая свежая незавершённая операция (карточка на портфеле).
+    var active: PendingOperation? {
         operations
-            .filter { $0.kind == .send && $0.stage == .awaitingResponse }
+            .filter { !$0.stage.isTerminal }
             .sorted { $0.createdAt > $1.createdAt }
             .first
+    }
+
+    /// Исходящая операция, для которой ещё нужна подпись/публикация
+    /// (одна за раз — предотвращает повторную подпись и дублирование).
+    var unfinishedSend: PendingOperation? {
+        operations
+            .filter { $0.kind == .send && $0.stage.blocksNewSend }
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
+    }
+
+    func operation(id: UUID) -> PendingOperation? {
+        operations.first { $0.id == id }
     }
 
     func operation(txID: String) -> PendingOperation? {

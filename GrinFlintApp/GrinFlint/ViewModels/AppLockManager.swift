@@ -17,6 +17,10 @@ final class AppLockManager {
     /// Сцена активна (не в фоне) — таймер крутится только тогда.
     private var isSceneActive = true
     private var inactivityTimer: Timer?
+    /// Поколение блокировки: растёт на каждой новой блокировке (фон, таймер,
+    /// ручная). Результат начатой ранее аутентификации не снимает более
+    /// новую блокировку.
+    private var lockGeneration = 0
 
     init() {
         // При защищённом входе стартуем заблокированными.
@@ -30,10 +34,21 @@ final class AppLockManager {
         restartTimer()
     }
 
+    /// Экран ушёл в неактивное состояние (системный диалог, переключатель):
+    /// закрываем содержимое, но не считаем это новой блокировкой — иначе
+    /// системный запрос Face ID во время разблокировки сам себе мешал бы.
+    func sceneWillResignActive() {
+        isSceneActive = false
+        stopTimer()
+        if WalletLock.isProtectionEnabled { isLocked = true }
+    }
+
+    /// Приложение ушло в фон — это новая блокировка. Неуспевший вернуться
+    /// результат аутентификации не должен её снять.
     func sceneDidEnterBackground() {
         isSceneActive = false
         stopTimer()
-        // Уход в фон считается неактивностью: блокируем немедленно.
+        lockGeneration &+= 1
         if WalletLock.isProtectionEnabled { isLocked = true }
     }
 
@@ -53,6 +68,7 @@ final class AppLockManager {
         guard isLocked, !isAuthenticating else { return }
         isAuthenticating = true
         lastError = nil
+        let generation = lockGeneration
         defer { isAuthenticating = false }
 
         do {
@@ -60,6 +76,13 @@ final class AppLockManager {
             // (политика userPresence): не показываем второй диалог подряд.
             if !BiometricAuth.recentlyConfirmed(within: 10) {
                 try await BiometricAuth.require(reason: "Разблокируйте кошелёк")
+            }
+            // Пока шла аутентификация, приложение могло уйти в фон — это
+            // более новая блокировка, прежний результат её не снимает.
+            guard generation == lockGeneration else {
+                isLocked = true
+                stopTimer()
+                return
             }
             isLocked = false
             lastError = nil
@@ -75,6 +98,7 @@ final class AppLockManager {
     /// Блокировка вручную (кнопка в настройках).
     func lockNow() {
         guard WalletLock.isProtectionEnabled else { return }
+        lockGeneration &+= 1
         isLocked = true
         stopTimer()
     }
@@ -87,7 +111,10 @@ final class AppLockManager {
         let interval = TimeInterval(WalletLock.autoLockInterval.rawValue)
         let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                self?.isLocked = true
+                guard let self else { return }
+                self.lockGeneration &+= 1
+                self.isLocked = true
+                self.stopTimer()
             }
         }
         RunLoop.main.add(timer, forMode: .common)

@@ -57,8 +57,15 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                PrivacyShieldPresenter.shared.setActive(true)
                 lock.sceneDidBecomeActive()
-            case .background, .inactive:
+            case .inactive:
+                // Системный диалог/переключатель: скрываем содержимое, но
+                // не создаём новую блокировку (её даёт уход в фон).
+                PrivacyShieldPresenter.shared.setActive(false)
+                lock.sceneWillResignActive()
+            case .background:
+                PrivacyShieldPresenter.shared.setActive(false)
                 lock.sceneDidEnterBackground()
             @unknown default:
                 break
@@ -74,6 +81,7 @@ struct ContentView: View {
         .task {
             // Приложение могло стартовать сразу заблокированным.
             LockScreenPresenter.shared.setLocked(lock.isLocked, lock: lock)
+            PrivacyShieldPresenter.shared.setActive(scenePhase == .active)
             if let text = simIncomingArgument {
                 incoming = IncomingSlatepack(text: text)
             }

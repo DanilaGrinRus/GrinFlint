@@ -33,7 +33,14 @@ protocol WalletService: AnyObject {
 
     /// Создать транзакцию на отправку и получить Slatepack для контрагента.
     /// `destination` — Slatepack-адрес получателя (grin1…).
-    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal
+    func prepareSend(destination: String, amountText: String) async throws -> SendProposal
+
+    /// Оценка комиссии до подписания: сумма + реальная комиссия backend.
+    /// Не блокирует средства и не создаёт транзакцию.
+    func estimateFee(destination: String, amountText: String) async throws -> FeeQuote
+
+    /// Максимум к отправке с учётом реальной комиссии (`spendable - fee`).
+    func maxSendable(destination: String) async throws -> MaxSendable
 
     /// Принять Slatepack контрагента и зачислить средства.
     func receive(slatepack: String) async throws -> TransactionRecord
@@ -55,6 +62,16 @@ protocol WalletService: AnyObject {
     /// финальную транзакцию в сеть. В демо — просто подтверждает запись.
     func finalize(slatepackResponse: String) async throws
 
+    /// Отметить, что запрос передан получателю (prepared → requestSent).
+    func markRequestSent(id: UUID) async
+
+    /// Отменить перевод до финализации (средства разблокируются).
+    func cancel(operationID: UUID) async throws
+
+    /// Повторно опубликовать уже подписанную транзакцию (repost) без новой
+    /// подписи — после ошибки публикации или перезапуска.
+    func repost(operationID: UUID) async throws
+
     /// Незавершённый перевод (сохраняется на диск, переживает перезапуск).
     var pendingOperation: PendingOperation? { get async }
 
@@ -68,6 +85,7 @@ extension WalletService {
     var unavailableReason: String? { nil }
     var pendingOperation: PendingOperation? { nil }
     func dismissPending(id: UUID) async {}
+    func markRequestSent(id: UUID) async {}
 }
 
 /// Заглушка, когда grin-wallet не поднялся: любая операция возвращает ошибку
@@ -100,19 +118,28 @@ final class UnavailableWalletService: WalletService {
 
     func refresh() async throws { try bail() }
 
-    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
-        try bail()
-    }
+    func prepareSend(destination: String, amountText: String) async throws -> SendProposal { try bail() }
+
+    func estimateFee(destination: String, amountText: String) async throws -> FeeQuote { try bail() }
+
+    func maxSendable(destination: String) async throws -> MaxSendable { try bail() }
 
     func receive(slatepack: String) async throws -> TransactionRecord { try bail() }
 
     func exportSlatepack(txID: UUID) async -> String? { nil }
 
     func finalize(slatepackResponse: String) async throws { try bail() }
+
+    func cancel(operationID: UUID) async throws { try bail() }
+
+    func repost(operationID: UUID) async throws { try bail() }
 }
 
 /// Демо-реализация: всё состояние в памяти, транзакции не уходят в сеть.
 final class MockWalletService: WalletService {
+    /// Демонстрационная комиссия: в демо нет входов и выбора монет.
+    static let demoFee = Decimal(string: "0.003")!
+
     private(set) var balance = Balance(
         spendable: Decimal(string: "148.352000000")!,
         awaiting: Decimal(string: "12.500000000")!,
@@ -141,7 +168,7 @@ final class MockWalletService: WalletService {
         if let directory = pendingDirectory {
             let store = PendingOperationsStore(directory: directory)
             pendingStore = store
-            pendingOperation = store.latest
+            pendingOperation = store.active
         } else {
             pendingStore = nil
             pendingOperation = nil
@@ -207,17 +234,47 @@ final class MockWalletService: WalletService {
         }
     }
 
-    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
-        if let awaiting = pendingOperation, awaiting.kind == .send, awaiting.stage == .awaitingResponse {
-            throw WalletError.pendingOperationExists(awaiting.stage.title)
-        }
-        guard let amount = GrinFormat.parse(amountText) else {
+    func estimateFee(destination: String, amountText: String) async throws -> FeeQuote {
+        let dest = destination.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dest.isEmpty else { throw WalletError.invalidAddress }
+        guard let amount = GrinFormat.parse(amountText), amount > 0 else {
             throw WalletError.invalidAmount
         }
-        let fee = feeTier.fee
+        let fee = Self.demoFee
+        let total = amount + fee
+        guard balance.spendable >= total else {
+            throw WalletError.insufficientFunds(needed: total, available: balance.spendable)
+        }
+        return FeeQuote(amount: amount, fee: fee, total: total)
+    }
+
+    func maxSendable(destination: String) async throws -> MaxSendable {
+        let dest = destination.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dest.isEmpty else { throw WalletError.invalidAddress }
+        let fee = Self.demoFee
+        let amount = balance.spendable - fee
+        guard amount > 0 else {
+            throw WalletError.insufficientFunds(needed: fee, available: balance.spendable)
+        }
+        return MaxSendable(amount: amount, fee: fee)
+    }
+
+    func markRequestSent(id: UUID) async {
+        guard var operation = operation(id: id), operation.stage == .prepared else { return }
+        operation.stage = .requestSent
+        update(operation)
+    }
+
+    func prepareSend(destination: String, amountText: String) async throws -> SendProposal {
+        if let awaiting = blockingSend {
+            throw WalletError.pendingOperationExists(awaiting.stage.title)
+        }
+        guard let amount = GrinFormat.parse(amountText), amount > 0 else {
+            throw WalletError.invalidAmount
+        }
+        let fee = Self.demoFee
         let dest = destination.trimmingCharacters(in: .whitespaces)
         guard !dest.isEmpty else { throw WalletError.invalidAddress }
-        guard amount > 0 else { throw WalletError.invalidAmount }
         let needed = amount + fee
         guard balance.spendable >= needed else {
             throw WalletError.insufficientFunds(needed: needed, available: balance.spendable)
@@ -238,13 +295,12 @@ final class MockWalletService: WalletService {
             at: 0
         )
         let operation = PendingOperation(
-            id: UUID(), kind: .send, stage: .awaitingResponse,
+            id: UUID(), kind: .send, stage: .prepared,
             slatepack: slatepack, destination: dest,
             amount: "\(amount)", fee: "\(fee)",
             txID: txID.uuidString, createdAt: Date(), lastError: nil
         )
-        pendingOperation = operation
-        pendingStore?.upsert(operation)
+        update(operation)
         return SendProposal(amount: amount, fee: fee, slatepack: slatepack, txID: txID)
     }
 
@@ -264,6 +320,13 @@ final class MockWalletService: WalletService {
             createdAt: Date()
         )
         transactions.insert(record, at: 0)
+        let operation = PendingOperation(
+            id: UUID(), kind: .receive, stage: .prepared,
+            slatepack: "BEGINSLATEPACK.reply", destination: nil,
+            amount: "\(amount)", fee: nil, txID: nil,
+            createdAt: Date(), lastError: nil
+        )
+        update(operation)
         return record
     }
 
@@ -278,8 +341,10 @@ final class MockWalletService: WalletService {
     }
 
     func dismissPending(id: UUID) async {
-        if pendingOperation?.id == id { pendingOperation = nil }
         pendingStore?.remove(id: id)
+        if pendingOperation?.id == id {
+            pendingOperation = pendingStore?.active
+        }
     }
 
     func finalize(slatepackResponse: String) async throws {
@@ -287,20 +352,103 @@ final class MockWalletService: WalletService {
             throw WalletError.invalidSlatepack
         }
         try await Task.sleep(nanoseconds: 400_000_000)
-        guard let index = transactions.firstIndex(where: { $0.type == .sent && $0.status == .unconfirmed }) else {
+        let candidate = pendingStore?.unfinishedSend
+            ?? pendingOperation.flatMap { $0.kind == .send ? $0 : nil }
+        guard var operation = candidate else {
             // Перевод уже завершён — запись о нём просто убираем.
             if let op = pendingOperation, op.kind == .send {
-                pendingOperation = nil
-                pendingStore?.remove(id: op.id)
+                dismissOperation(op)
             }
+            return
+        }
+        operation.stage = .finalized
+        update(operation)
+
+        // Демо-«блок» мог уже подтвердить этот перевод при refresh:
+        // тогда операция просто становится терминальной.
+        if let txID = operation.txID,
+           let tx = transactions.first(where: { $0.id.uuidString == txID }),
+           tx.status == .confirmed {
+            operation.stage = .confirmed
+            operation.lastError = nil
+            update(operation)
+            return
+        }
+
+        guard let index = transactions.firstIndex(where: { $0.type == .sent && $0.status == .unconfirmed }) else {
+            operation.stage = .posted
+            update(operation)
             return
         }
         transactions[index].status = .confirmed
         balance.locked -= (transactions[index].amount.magnitude + transactions[index].fee)
         transactions[index].slatepack = nil
-        if let op = pendingOperation, op.kind == .send {
-            pendingOperation = nil
-            pendingStore?.remove(id: op.id)
+        operation.stage = .confirmed
+        operation.lastError = nil
+        update(operation)
+    }
+
+    func cancel(operationID: UUID) async throws {
+        guard var operation = operation(id: operationID) else {
+            throw WalletError.operationState("операция не найдена")
         }
+        guard operation.kind == .send, operation.stage.acceptsResponse else {
+            throw WalletError.operationState("отмена возможна только до финализации")
+        }
+        if let txID = operation.txID,
+           let tx = transactions.first(where: { $0.id.uuidString == txID }),
+           tx.status == .confirmed {
+            throw WalletError.operationState("транзакция уже подтверждена")
+        }
+        let amount = operation.amountDecimal ?? 0
+        let fee = operation.feeDecimal ?? 0
+        balance.locked -= (amount + fee)
+        balance.spendable += (amount + fee)
+        if let txID = operation.txID,
+           let index = transactions.firstIndex(where: { $0.id.uuidString == txID }) {
+            transactions[index].status = .reverted
+            transactions[index].slatepack = nil
+        }
+        operation.stage = .cancelled
+        operation.lastError = nil
+        update(operation)
+    }
+
+    func repost(operationID: UUID) async throws {
+        guard var operation = operation(id: operationID) else {
+            throw WalletError.operationState("операция не найдена")
+        }
+        guard operation.kind == .send, operation.stage == .finalized else {
+            throw WalletError.operationState("повтор публикации доступен только после подписи")
+        }
+        operation.stage = .posted
+        operation.lastError = nil
+        update(operation)
+    }
+
+    // MARK: Журнал
+
+    /// Обновить операцию в памяти и в сохранённом журнале.
+    private func update(_ operation: PendingOperation) {
+        pendingStore?.upsert(operation)
+        pendingOperation = pendingStore?.active ?? (operation.stage.isTerminal ? nil : operation)
+    }
+
+    private func operation(id: UUID) -> PendingOperation? {
+        pendingStore?.operation(id: id) ?? (pendingOperation?.id == id ? pendingOperation : nil)
+    }
+
+    /// Исходящая операция, которая ещё требует подписи/публикации.
+    private var blockingSend: PendingOperation? {
+        if let stored = pendingStore?.unfinishedSend { return stored }
+        guard let op = pendingOperation, op.kind == .send, op.stage.blocksNewSend else {
+            return nil
+        }
+        return op
+    }
+
+    private func dismissOperation(_ operation: PendingOperation) {
+        pendingStore?.remove(id: operation.id)
+        pendingOperation = pendingStore?.active
     }
 }

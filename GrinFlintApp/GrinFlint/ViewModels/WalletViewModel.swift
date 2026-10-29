@@ -46,6 +46,8 @@ final class WalletViewModel {
         Array(transactions.prefix(5))
     }
 
+    var hasPendingOperation: Bool { pendingOperation != nil }
+
     func clearError() {
         errorMessage = nil
     }
@@ -67,9 +69,19 @@ final class WalletViewModel {
         }
     }
 
-    func prepareSend(destination: String, amountText: String, feeTier: FeeTier) async throws -> SendProposal {
+    /// Оценка комиссии до подписания (не блокирует средства).
+    func estimateFee(destination: String, amountText: String) async throws -> FeeQuote {
+        try await service.estimateFee(destination: destination, amountText: amountText)
+    }
+
+    /// Максимум к отправке с учётом настоящей комиссии.
+    func maxSendable(destination: String) async throws -> MaxSendable {
+        try await service.maxSendable(destination: destination)
+    }
+
+    func prepareSend(destination: String, amountText: String) async throws -> SendProposal {
         do {
-            let proposal = try await service.prepareSend(destination: destination, amountText: amountText, feeTier: feeTier)
+            let proposal = try await service.prepareSend(destination: destination, amountText: amountText)
             await syncFromService()
             // Отправка ещё не завершена: получатель должен вернуть Slatepack.
             TxReminders.schedule(id: proposal.txID.uuidString)
@@ -78,6 +90,25 @@ final class WalletViewModel {
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    /// Отметить, что запрос передан получателю (стадия requestSent).
+    func markRequestSent(operationID: UUID) async {
+        await service.markRequestSent(id: operationID)
+        await syncFromService()
+    }
+
+    /// Отменить перевод до финализации.
+    func cancelPending(operationID: UUID) async throws {
+        try await service.cancel(operationID: operationID)
+        await syncFromService()
+        TxReminders.cancelAll()
+    }
+
+    /// Повторить публикацию подписанной транзакции без новой подписи.
+    func repostPending(operationID: UUID) async throws {
+        try await service.repost(operationID: operationID)
+        await syncFromService()
     }
 
     func receive(slatepack: String) async throws -> TransactionRecord {
