@@ -1,8 +1,11 @@
 import XCTest
-@testable import GrinFlint
+import Foundation
+@testable import GrinFlintCore
 
 /// Юнит-тесты журнала незавершённых переводов: этап операции не должен
 /// теряться после перезапуска, а ожидающая отправка — дублироваться.
+///
+/// Запускаются без macOS: `swift test` (SwiftPM, Windows/Linux).
 final class PendingOperationsStoreTests: XCTestCase {
     private var directory: URL!
 
@@ -174,5 +177,36 @@ final class PendingOperationsStoreTests: XCTestCase {
         XCTAssertFalse(PendingOperationStage.posted.blocksNewSend)
         XCTAssertTrue(PendingOperationStage.requestSent.acceptsResponse)
         XCTAssertFalse(PendingOperationStage.finalized.acceptsResponse)
+    }
+}
+
+/// Форматирование и разбор сумм — чистая логика без FFI.
+final class GrinFormatTests: XCTestCase {
+    func testParseAcceptsCommaAndDot() {
+        XCTAssertEqual(GrinFormat.parse("1,5"), Decimal(string: "1.5"))
+        XCTAssertEqual(GrinFormat.parse("10.25"), Decimal(string: "10.25"))
+    }
+
+    func testParseRejectsZeroAndGarbage() {
+        XCTAssertNil(GrinFormat.parse("0"))
+        XCTAssertNil(GrinFormat.parse("-1"))
+        XCTAssertNil(GrinFormat.parse("abc"))
+        XCTAssertNil(GrinFormat.parse(""))
+    }
+
+    func testFormatsWithSuffixAndNineDigits() {
+        XCTAssertEqual(
+            GrinFormat.grin(Decimal(string: "1.5")!),
+            "1.5 GRIN"
+        )
+        XCTAssertEqual(
+            GrinFormat.grin(Decimal(string: "0.000000001")!),
+            "0.000000001 GRIN"
+        )
+    }
+
+    func testAmountForInputHasNoSuffixOrGrouping() {
+        XCTAssertEqual(GrinFormat.amount(Decimal(string: "1234.5")!), "1234.5")
+        XCTAssertEqual(GrinFormat.short(Decimal(string: "0.123456")!), "0.1235")
     }
 }

@@ -185,10 +185,17 @@ final class PendingOperationsStore {
                 withIntermediateDirectories: true
             )
             let data = try JSONEncoder().encode(operations)
-            try data.write(
-                to: fileURL,
-                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
-            )
+            // Защита файла до первого входа — только Darwin; на Linux/Windows
+            // (тесты чистой логики) остаётся атомарная запись.
+            #if canImport(Darwin)
+            let options: Data.WritingOptions = [
+                .atomic,
+                .completeFileProtectionUntilFirstUserAuthentication,
+            ]
+            #else
+            let options: Data.WritingOptions = [.atomic]
+            #endif
+            try data.write(to: fileURL, options: options)
         } catch {
             // Журнал — вспомогательный: операция всё равно в памяти.
         }
