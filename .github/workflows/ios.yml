@@ -57,7 +57,7 @@ jobs:
 
       - name: Тест жизненного цикла кошелька
         working-directory: ffi/grin-wallet-ffi
-        run: cargo test --test roundtrip -- --nocapture
+        run: cargo test --test roundtrip --test ffi_memory -- --nocapture
 
   rust-ios:
     name: Сборка FFI для iOS (XCFramework)
