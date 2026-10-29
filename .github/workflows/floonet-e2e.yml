@@ -112,3 +112,19 @@ jobs:
         run: |
           export GRIN_E2E_API_SECRET="$(cat "$HOME/.grin/test/.api_secret")"
           cargo test --test e2e_floonet -- --nocapture
+
+      # Отдельный прогон: restore 24 слов в ЧИСТОМ каталоге → полный скан →
+      # перевод → подтверждение → запрет отмены после подтверждения.
+      # Старая копия БД для этого не годится (фантомные выходы).
+      - name: Restore из seed в чистом каталоге
+        working-directory: ffi/grin-wallet-ffi
+        timeout-minutes: 25
+        env:
+          GRIN_E2E_NODE_URL: http://127.0.0.1:13413
+          GRINFFI_CYCLE_SEED: ${{ secrets.TEST_WALLET_SEED }}
+          # Пароль нового кошелька этого прогона (не seed); тот же, что в e2e.
+          GRINFFI_CYCLE_PASS: e2e-test-password
+          GRINFFI_CYCLE_AMOUNT_NGRIN: "1000000"
+        run: |
+          export GRIN_E2E_API_SECRET="$(cat "$HOME/.grin/test/.api_secret")"
+          cargo test --test restore_cycle -- --nocapture
