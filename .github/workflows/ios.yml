@@ -339,3 +339,72 @@ jobs:
           path: screenshots/*.png
           if-no-files-found: warn
           retention-days: 14
+  # Неподписанный Release archive для устройства: CI отдаёт артефакт,
+  # подпись Personal Team и установка выполняются на Mac владельца.
+  device-archive:
+    name: Device Release archive (FFI, без подписи)
+    runs-on: macos-15
+    needs: rust-ios
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Версия Xcode
+        run: xcodebuild -version
+
+      - name: Скачать XCFramework FFI
+        uses: actions/download-artifact@v4
+        with:
+          name: GrinWalletFFI.xcframework
+          path: ffi-artifact
+
+      - name: Архив для устройства (Release, подпись отключена)
+        run: |
+          set -euo pipefail
+          XCF=ffi-artifact/GrinWalletFFI.xcframework
+          [ -d "$XCF" ] || XCF=ffi-artifact
+          DEVICE_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' | grep -v -i sim | head -1)
+          HEADERS=$(find "$XCF" -type d -name Headers | head -1)
+          test -n "$DEVICE_LIB" || { echo "нет device-слайса XCFramework"; exit 1; }
+          test -n "$HEADERS" || { echo "нет заголовков FFI"; exit 1; }
+          xcodebuild archive \
+            -project GrinFlintApp/GrinFlint.xcodeproj \
+            -scheme GrinFlint \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/GrinFlint.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
+            SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
+            HEADER_SEARCH_PATHS="$PWD/$HEADERS" \
+            OTHER_LDFLAGS="-L$PWD/$(dirname "$DEVICE_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Проверка архива и BUILD-INFO
+        run: |
+          set -euo pipefail
+          A="$PWD/build/GrinFlint.xcarchive"
+          test -d "$A" || { echo "archive не создан"; exit 1; }
+          APP="$A/Products/Applications/GrinFlint.app"
+          test -d "$APP" || { echo "app в архиве не найден"; exit 1; }
+          test -d "$APP/PlugIns/GrinFlintShare.appex" || { echo "Share Extension не встроен"; exit 1; }
+          file "$APP/GrinFlint" | grep -q 'arm64' || { echo "бинарник не arm64"; exit 1; }
+          {
+            echo "commit: ${GITHUB_SHA}"
+            echo "run: ${GITHUB_RUN_ID}"
+            xcodebuild -version
+          } > "$A/BUILD-INFO.txt"
+          cat "$A/BUILD-INFO.txt"
+          cd build
+          zip -qry GrinFlint.xcarchive.zip GrinFlint.xcarchive
+          shasum -a 256 GrinFlint.xcarchive.zip | tee GrinFlint.xcarchive.zip.sha256
+
+      - name: Артефакт device-архива
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-archive
+          path: |
+            build/GrinFlint.xcarchive.zip
+            build/GrinFlint.xcarchive.zip.sha256
+            build/GrinFlint.xcarchive/BUILD-INFO.txt
+          retention-days: 30
