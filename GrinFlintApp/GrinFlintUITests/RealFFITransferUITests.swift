@@ -3,21 +3,23 @@ import XCTest
 #if GRINFFI
 import UIKit
 
-/// Живой UI-перевод с настоящим FFI.
+/// Живые UI-переводы с настоящим FFI.
 ///
-/// Сценарий: приложение на симуляторе восстанавливает кошелёк A из seed через
-/// онбординг (настоящий grin-wallet, локальная нода), затем через экран
-/// отправки создаёт перевод на кошелёк B. B создаётся через FFI прямо в
-/// тестовом процессе: он принимает Slatepack и возвращает ответ, который
-/// вставляется в UI. Финализация идёт через UI, подтверждение проверяется
-/// и в сети (B видит средства), и в UI (карточка перевода становится
-/// подтверждённой).
+/// Общий сценарий: приложение на симуляторе восстанавливает кошелёк A из seed
+/// через онбординг (настоящий grin-wallet, floonet-нода), создаёт перевод на
+/// кошелёк B. B создаётся через FFI прямо в тестовом процессе: принимает
+/// Slatepack и возвращает ответ, который вставляется в UI. Финализация идёт
+/// через UI, подтверждение проверяется и в сети (B видит средства), и в UI.
 ///
-/// Запуск требует macOS-симулятора и доступной floonet-ноды; env передаётся
-/// через `TEST_RUNNER_*` (см. scripts/ui-e2e-macos.sh):
-///   GRIN_E2E_SEED, GRIN_E2E_PASS, GRIN_E2E_NODE_URL,
-///   GRIN_E2E_API_SECRET (опционально), GRIN_E2E_RESTORE_HEIGHT (опционально).
-/// Без seed тест пропускается, поэтому обычный CI не требует ноды и средств.
+/// `testRepostAfterPostFailureThroughUI` дополнительно требует прокси
+/// (`GRIN_E2E_PROXY_URL`), который валит первый broadcast `push_transaction`:
+/// finalize подписывает и сохраняет Slate, post получает настоящую ошибку,
+/// после чего публикация повторяется кнопкой «Опубликовать снова».
+///
+/// Env передаётся через `TEST_RUNNER_*` (см. scripts/ui-e2e-macos.sh):
+///   GRIN_E2E_SEED, GRIN_E2E_NODE_URL, GRIN_E2E_API_SECRET (опц.),
+///   GRIN_E2E_RESTORE_HEIGHT (опц.), GRIN_E2E_PROXY_URL (для repost-теста).
+/// Без seed тесты пропускаются: обычный CI не требует ноды и средств.
 final class RealFFITransferUITests: XCTestCase {
     private var app: XCUIApplication!
     private let env = ProcessInfo.processInfo.environment
@@ -29,10 +31,88 @@ final class RealFFITransferUITests: XCTestCase {
         }
         _ = seed
         app = XCUIApplication()
-        app.launchArguments = ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
     }
 
+    // MARK: - Тесты
+
     func testTransferThroughUIWithRealFFI() throws {
+        let ctx = try startTransfer(nodeURLOverride: env["GRIN_E2E_NODE_URL"])
+        let response = try ctx.recipient.receive(ctx.request)
+        try pasteResponse(response)
+
+        app.buttons["Завершить перевод"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Перевод завершён"].waitForExistence(timeout: 240),
+            "финализация через FFI не прошла"
+        )
+        XCTAssertTrue(
+            try ctx.recipient.waitForSpendable(atLeast: 1_000_000, timeout: 600),
+            "получатель не увидел подтверждение за 10 минут"
+        )
+        try closeTransferSheetAndWaitConfirmed()
+    }
+
+    /// Живой сбой публикации → повтор через UI без новой подписи.
+    func testRepostAfterPostFailureThroughUI() throws {
+        guard let proxy = env["GRIN_E2E_PROXY_URL"], !proxy.isEmpty else {
+            throw XCTSkip("нет GRIN_E2E_PROXY_URL — живой сбой публикации не создаётся")
+        }
+        let ctx = try startTransfer(nodeURLOverride: proxy)
+        let response = try ctx.recipient.receive(ctx.request)
+        try pasteResponse(response)
+
+        // 1) finalize подписывает и сохраняет Slate, но post упирается в 500 прокси.
+        app.buttons["Завершить перевод"].tap()
+        let alert = app.alerts["Не удалось завершить перевод"]
+        XCTAssertTrue(
+            alert.waitForExistence(timeout: 180),
+            "post не упал: прокси не перехватил push_transaction?"
+        )
+        alert.buttons["OK"].tap()
+
+        // 2) Закрываем лист; в журнале операция на стадии «подписана».
+        try tapButton(scrolling: "Готово")
+        let card = app.buttons["pending.operation"]
+        XCTAssertTrue(card.waitForExistence(timeout: 15), "нет карточки незавершённого перевода")
+        card.tap()
+        XCTAssertTrue(
+            app.staticTexts["Транзакция подписана"].waitForExistence(timeout: 15),
+            "журнал не остался на стадии finalized"
+        )
+
+        // 3) Повторная публикация без новой подписи.
+        let repost = app.buttons["pending.repost"]
+        XCTAssertTrue(repost.waitForExistence(timeout: 10), "нет кнопки «Опубликовать снова»")
+        XCTAssertTrue(repost.isHittable, "кнопка повтора недоступна")
+        repost.tap()
+        XCTAssertTrue(
+            app.staticTexts["Опубликована в сети"].waitForExistence(timeout: 180),
+            "repost через UI не прошёл"
+        )
+
+        // 4) Подтверждение в сети и в UI.
+        XCTAssertTrue(
+            try ctx.recipient.waitForSpendable(atLeast: 1_000_000, timeout: 600),
+            "получатель не увидел подтверждение после repost за 10 минут"
+        )
+        let deadline = Date().addingTimeInterval(600)
+        while app.buttons["pending.operation"].exists && Date() < deadline {
+            if app.buttons["pending.refresh"].exists, app.buttons["pending.refresh"].isHittable {
+                app.buttons["pending.refresh"].tap()
+            }
+            Thread.sleep(forTimeInterval: 5)
+        }
+        XCTAssertFalse(app.buttons["pending.operation"].exists, "UI не отметил перевод подтверждённым")
+    }
+
+    // MARK: - Общий сценарий
+
+    private struct TransferContext {
+        let recipient: RecipientWallet
+        let request: String
+    }
+
+    private func startTransfer(nodeURLOverride: String?) throws -> TransferContext {
         let seed = env["GRIN_E2E_SEED"]!
         let nodeURL = env["GRIN_E2E_NODE_URL"] ?? "http://127.0.0.1:13413"
         let apiSecret = (env["GRIN_E2E_API_SECRET"]?.isEmpty == false)
@@ -40,24 +120,26 @@ final class RealFFITransferUITests: XCTestCase {
         let restoreHeight = (env["GRIN_E2E_RESTORE_HEIGHT"]?.isEmpty == false)
             ? env["GRIN_E2E_RESTORE_HEIGHT"] : nil
 
-        // Получатель: отдельный кошелёк через тот же FFI, но в тестовом процессе.
         let recipient = try RecipientWallet(nodeURL: nodeURL, apiSecret: apiSecret)
         addTeardownBlock { recipient.destroy() }
 
+        app.launchArguments = ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
+        if let nodeURLOverride {
+            // UserDefaults читает аргументы запуска: кошелёк ходит через прокси.
+            app.launchArguments += ["-nodeURL", nodeURLOverride]
+        }
         app.launch()
 
-        // 1) Онбординг должен быть чистым: приложение устанавливают заново.
+        // Онбординг должен быть чистым: приложение устанавливают заново.
         let restoreButton = app.buttons["Восстановить из seed-фразы"]
         guard restoreButton.waitForExistence(timeout: 30) else {
-            XCTFail(
-                "онбординг не появился. Перед прогоном удалите приложение с симулятора: "
+            throw TestFFIError.message(
+                "онбординг не появился. Перед прогоном удалите приложение: "
                     + "xcrun simctl uninstall booted com.dan.grinflint"
             )
-            return
         }
         restoreButton.tap()
 
-        // 2) Seed-фраза и (если задана) высота восстановления.
         let seedEditor = app.textViews["restore.seed"]
         XCTAssertTrue(seedEditor.waitForExistence(timeout: 10), "нет поля seed-фразы")
         seedEditor.tap()
@@ -69,16 +151,14 @@ final class RealFFITransferUITests: XCTestCase {
             heightField.tap()
             heightField.typeText(restoreHeight)
         }
-
         app.buttons["Восстановить"].tap()
 
-        // 3) Восстановление и скан — настоящий FFI, может занять минуты.
         XCTAssertTrue(
             app.staticTexts["Общий баланс"].waitForExistence(timeout: 900),
             "кошелёк не открылся после восстановления (проверьте ноду и seed)"
         )
 
-        // 4) Отправка через UI.
+        // Отправка.
         app.buttons["portfolio.send"].tap()
         let destination = app.textFields["send.destination"]
         XCTAssertTrue(destination.waitForExistence(timeout: 15), "экран отправки не открылся")
@@ -95,12 +175,11 @@ final class RealFFITransferUITests: XCTestCase {
             app.staticTexts["Транзакция создана"].waitForExistence(timeout: 180),
             "FFI не создал транзакцию (проверьте баланс и ноду)"
         )
-
-        // 5) Забираем Slatepack из UI и отвечаем кошельком B.
         let request = try slatepackFromUI()
-        let response = try recipient.receive(request)
+        return TransferContext(recipient: recipient, request: request)
+    }
 
-        // 6) Вставляем ответ и завершаем перевод через UI.
+    private func pasteResponse(_ response: String) throws {
         let editor = app.textViews["send.response"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "нет поля ответного Slatepack")
         editor.tap()
@@ -112,31 +191,30 @@ final class RealFFITransferUITests: XCTestCase {
         } else {
             editor.typeText(response)
         }
+    }
 
-        app.buttons["Завершить перевод"].tap()
-        XCTAssertTrue(
-            app.staticTexts["Перевод завершён"].waitForExistence(timeout: 240),
-            "финализация через FFI не прошла"
-        )
-
-        // 7) Подтверждение в сети: B видит средства после скана ноды.
-        XCTAssertTrue(
-            try recipient.waitForSpendable(atLeast: 1_000_000, timeout: 600),
-            "получатель не увидел подтверждение за 10 минут"
-        )
-
-        // 8) UI обновляется до подтверждённого состояния.
-        app.buttons["Готово"].tap()
+    /// Закрывает лист перевода и ждёт, пока карточка операции исчезнет.
+    private func closeTransferSheetAndWaitConfirmed() throws {
+        try tapButton(scrolling: "Готово")
         let pending = app.buttons["pending.operation"]
         let refresh = app.buttons["portfolio.refresh"]
         let deadline = Date().addingTimeInterval(600)
         while pending.exists && Date() < deadline {
-            if refresh.isHittable {
-                refresh.tap()
-            }
+            if refresh.isHittable { refresh.tap() }
             Thread.sleep(forTimeInterval: 5)
         }
         XCTAssertFalse(pending.exists, "UI не отметил перевод подтверждённым за 10 минут")
+    }
+
+    private func tapButton(scrolling label: String) throws {
+        let button = app.buttons[label]
+        for _ in 0..<4 where !(button.exists && button.isHittable) {
+            app.swipeUp()
+        }
+        guard button.waitForExistence(timeout: 10), button.isHittable else {
+            throw TestFFIError.message("кнопка «\(label)» недоступна")
+        }
+        button.tap()
     }
 
     /// Slatepack из UI: обычно доступен как текст; запасной путь — кнопка копирования.

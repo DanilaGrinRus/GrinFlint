@@ -124,19 +124,34 @@ jobs:
           done
           echo "нода не синхронизировалась"; tail -40 grin-node.log 2>/dev/null || true; exit 1
 
-      - name: UI-перевод с настоящим FFI
+      - name: Прокси со сбоем публикации
+        run: |
+          python3 scripts/floonet-post-fail-proxy.py \
+            --listen 13414 --target http://127.0.0.1:13413 --fail-broadcasts 1 \
+            > proxy.log 2>&1 &
+          for i in $(seq 1 20); do
+            sleep 1
+            if curl -s -X POST http://127.0.0.1:13414/v2/foreign \
+              -H 'Content-Type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"get_tip"}' | grep -q '"Ok"'; then
+              echo "прокси готов"; exit 0
+            fi
+          done
+          echo "прокси не поднялся"; cat proxy.log; exit 1
+
+      - name: "UI-тест: repost после сбоя публикации"
         env:
           TEST_RUNNER_GRIN_E2E_SEED: ${{ secrets.TEST_WALLET_SEED }}
           TEST_RUNNER_GRIN_E2E_NODE_URL: http://127.0.0.1:13413
+          TEST_RUNNER_GRIN_E2E_PROXY_URL: http://127.0.0.1:13414
         run: |
           set -euo pipefail
           TIP=$(curl -s -X POST http://127.0.0.1:13413/v2/foreign \
             -H 'Content-Type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"get_tip"}' \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["Ok"]["height"])')
-          echo "tip=$TIP"
           export TEST_RUNNER_GRIN_E2E_RESTORE_HEIGHT=$((TIP - 20000))
-          echo "restore_height=$TEST_RUNNER_GRIN_E2E_RESTORE_HEIGHT"
+          echo "tip=$TIP restore_height=$TEST_RUNNER_GRIN_E2E_RESTORE_HEIGHT"
           XCF="$PWD/ffi/GrinWalletFFI.xcframework"
           SIM_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' | head -1)
           HEADERS=$(find "$XCF" -type d -name Headers | head -1)
@@ -151,19 +166,59 @@ jobs:
             -scheme GrinFlint \
             -derivedDataPath "$PWD/build" \
             -destination "platform=iOS Simulator,id=$DEVICE" \
-            -only-testing:GrinFlintUITests/RealFFITransferUITests \
-            -resultBundlePath "$PWD/ui-e2e.xcresult" \
+            -only-testing:GrinFlintUITests/RealFFITransferUITests/testRepostAfterPostFailureThroughUI \
+            -resultBundlePath "$PWD/repost.xcresult" \
             SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
             SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
             HEADER_SEARCH_PATHS="$HEADERS" \
             OTHER_LDFLAGS="-L$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
             | xcpretty && exit ${PIPESTATUS[0]}
 
-      - name: Результат UI-теста (xcresult)
+      - name: "UI-тест: обычный перевод"
+        env:
+          TEST_RUNNER_GRIN_E2E_SEED: ${{ secrets.TEST_WALLET_SEED }}
+          TEST_RUNNER_GRIN_E2E_NODE_URL: http://127.0.0.1:13413
+        run: |
+          set -euo pipefail
+          TIP=$(curl -s -X POST http://127.0.0.1:13413/v2/foreign \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"get_tip"}' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["Ok"]["height"])')
+          export TEST_RUNNER_GRIN_E2E_RESTORE_HEIGHT=$((TIP - 20000))
+          echo "tip=$TIP restore_height=$TEST_RUNNER_GRIN_E2E_RESTORE_HEIGHT"
+          XCF="$PWD/ffi/GrinWalletFFI.xcframework"
+          SIM_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' | head -1)
+          HEADERS=$(find "$XCF" -type d -name Headers | head -1)
+          test -n "$SIM_LIB" && test -n "$HEADERS"
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone' | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          test -n "$DEVICE" || { echo "симулятор не найден"; exit 1; }
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl uninstall "$DEVICE" com.dan.grinflint || true
+          xcodebuild test \
+            -project GrinFlintApp/GrinFlint.xcodeproj \
+            -scheme GrinFlint \
+            -derivedDataPath "$PWD/build" \
+            -destination "platform=iOS Simulator,id=$DEVICE" \
+            -only-testing:GrinFlintUITests/RealFFITransferUITests/testTransferThroughUIWithRealFFI \
+            -resultBundlePath "$PWD/transfer.xcresult" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
+            SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
+            HEADER_SEARCH_PATHS="$HEADERS" \
+            OTHER_LDFLAGS="-L$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Остановить прокси
+        if: always()
+        run: pkill -f floonet-post-fail-proxy.py || true
+
+      - name: Результаты UI-тестов (xcresult)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-e2e-results
-          path: ui-e2e.xcresult
+          path: |
+            repost.xcresult
+            transfer.xcresult
           if-no-files-found: warn
           retention-days: 14

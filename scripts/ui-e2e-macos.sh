@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# Живой UI-перевод с настоящим FFI на симуляторе macOS.
+# Живые UI-переводы с настоящим FFI на симуляторе macOS.
 #
 # Требуется:
 #   * macOS с Xcode 16+;
-#   * запущенная floonet-нода на 127.0.0.1:13413 (ищите запуск через
-#     tools/run-testnet-node.ps1 на Windows или `grin --testnet server run`);
-#     foreign API должен быть доступен без Basic Auth — приложение не хранит
-#     секрет ноды;
+#   * запущенная floonet-нода на 127.0.0.1:13413 (без Basic Auth на foreign
+#     API — приложение не хранит секрет ноды);
 #   * собранный XCFramework FFI (артефакт CI `GrinWalletFFI.xcframework`);
 #   * симулятор iPhone.
 #
@@ -14,6 +12,10 @@
 #   GRIN_E2E_SEED="24 слова" GRIN_E2E_RESTORE_HEIGHT=3295124 \
 #     ./scripts/ui-e2e-macos.sh
 #
+# Прогоняются два теста:
+#   1. repost после живого сбоя публикации (через локальный прокси, который
+#      валит первый push_transaction);
+#   2. обычный перевод без сбоя.
 # Без GRIN_E2E_RESTORE_HEIGHT берётся tip − 20 000 (быстро, но подходит только
 # для кошелька с недавними выходами). Пустое значение = полный скан.
 set -euo pipefail
@@ -60,8 +62,6 @@ DEVICE=$(xcrun simctl list devices available \
 echo "симулятор: $DEVICE"
 xcrun simctl boot "$DEVICE" || true
 xcrun simctl bootstatus "$DEVICE" -b
-# Чистый онбординг: убираем кошелёк и UserDefaults прошлого прогона.
-xcrun simctl uninstall "$DEVICE" com.dan.grinflint || true
 
 export TEST_RUNNER_GRIN_E2E_SEED="$GRIN_E2E_SEED"
 export TEST_RUNNER_GRIN_E2E_NODE_URL="$NODE"
@@ -70,17 +70,39 @@ if [ -n "${GRIN_E2E_API_SECRET:-}" ]; then
     export TEST_RUNNER_GRIN_E2E_API_SECRET="$GRIN_E2E_API_SECRET"
 fi
 
-XCODEBUILD=(
-    xcodebuild test
-    -project GrinFlintApp/GrinFlint.xcodeproj
-    -scheme GrinFlint
-    -derivedDataPath "$PWD/build"
-    -destination "platform=iOS Simulator,id=$DEVICE"
-    -only-testing:GrinFlintUITests/RealFFITransferUITests
-    SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI'
-    SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h"
-    HEADER_SEARCH_PATHS="$HEADERS"
-    OTHER_LDFLAGS="-L$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv"
-)
+run_test() {
+    local only="$1"
+    local result="$2"
+    # Чистый онбординг перед каждым тестом.
+    xcrun simctl uninstall "$DEVICE" com.dan.grinflint || true
+    xcodebuild test \
+        -project GrinFlintApp/GrinFlint.xcodeproj \
+        -scheme GrinFlint \
+        -derivedDataPath "$PWD/build" \
+        -destination "platform=iOS Simulator,id=$DEVICE" \
+        -only-testing:"GrinFlintUITests/RealFFITransferUITests/$only" \
+        -resultBundlePath "$PWD/$result" \
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
+        SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
+        HEADER_SEARCH_PATHS="$HEADERS" \
+        OTHER_LDFLAGS="-L$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv"
+}
 
-"${XCODEBUILD[@]}"
+# 1) Живой сбой публикации: прокси валит первый push_transaction.
+PROXY_PORT="${GRIN_E2E_PROXY_PORT:-13414}"
+python3 "$ROOT/scripts/floonet-post-fail-proxy.py" \
+    --listen "$PROXY_PORT" --target "$NODE" --fail-broadcasts 1 \
+    > /tmp/grinflint-post-fail-proxy.log 2>&1 &
+PROXY_PID=$!
+trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
+sleep 1
+export TEST_RUNNER_GRIN_E2E_PROXY_URL="http://127.0.0.1:$PROXY_PORT"
+
+run_test testRepostAfterPostFailureThroughUI repost.xcresult
+
+kill "$PROXY_PID" 2>/dev/null || true
+wait "$PROXY_PID" 2>/dev/null || true
+unset TEST_RUNNER_GRIN_E2E_PROXY_URL
+
+# 2) Обычный перевод без сбоя.
+run_test testTransferThroughUIWithRealFFI transfer.xcresult
