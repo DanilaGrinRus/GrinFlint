@@ -49,7 +49,7 @@ jobs:
           du -h target/aarch64-apple-ios-sim/release/libgrin_node_spike.a
 
   host-measure:
-    name: Синк ноды на macOS: время, RSS, диск
+    name: "Синк ноды на macOS: время, RSS, диск"
     runs-on: macos-15
     timeout-minutes: 70
     steps:
@@ -93,7 +93,7 @@ jobs:
           test -f "$HOME/.grin/test/grin-server.toml" || { echo "нет конфига"; cat grin-boot.log; exit 1; }
           grep -E 'db_root|api_http_addr|chain_type|archive_mode|^port' "$HOME/.grin/test/grin-server.toml" || true
 
-      - name: Первичный синк: время, RSS, диск
+      - name: "Первичный синк: время, RSS, диск"
         timeout-minutes: 40
         run: |
           set -euo pipefail
