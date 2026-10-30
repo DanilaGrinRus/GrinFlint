@@ -174,6 +174,7 @@ struct RestoreWalletView: View {
                             .foregroundStyle(Theme.textPrimary)
                             .frame(minHeight: 120)
                             .scrollContentBackground(.hidden)
+                            .accessibilityIdentifier("restore.seed")
                         Text("Слов: \(wordCount)")
                             .font(.system(size: 12))
                             .foregroundStyle(

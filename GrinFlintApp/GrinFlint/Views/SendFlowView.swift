@@ -433,6 +433,7 @@ struct SendResultSheet: View {
                     .padding(8)
                     .background(Color.black.opacity(0.3))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .accessibilityIdentifier("send.response")
 
                 Button {
                     Task { await finish() }

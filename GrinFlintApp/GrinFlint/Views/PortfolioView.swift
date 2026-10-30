@@ -38,6 +38,7 @@ struct PortfolioView: View {
                             )
                     }
                     .disabled(viewModel.isRefreshing)
+                    .accessibilityIdentifier("portfolio.refresh")
                 }
             }
             // Баннер вставляет отступ в контент, а не накрывает карточку баланса.
