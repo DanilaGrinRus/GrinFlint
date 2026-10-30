@@ -124,21 +124,6 @@ jobs:
           done
           echo "нода не синхронизировалась"; tail -40 grin-node.log 2>/dev/null || true; exit 1
 
-      - name: Прокси со сбоем публикации
-        run: |
-          python3 scripts/floonet-post-fail-proxy.py \
-            --listen 13414 --target http://127.0.0.1:13413 --fail-broadcasts 1 \
-            > proxy.log 2>&1 &
-          for i in $(seq 1 20); do
-            sleep 1
-            if curl -s -X POST http://127.0.0.1:13414/v2/foreign \
-              -H 'Content-Type: application/json' \
-              -d '{"jsonrpc":"2.0","id":1,"method":"get_tip"}' | grep -q '"Ok"'; then
-              echo "прокси готов"; exit 0
-            fi
-          done
-          echo "прокси не поднялся"; cat proxy.log; exit 1
-
       - name: "UI-тест: repost после сбоя публикации"
         env:
           TEST_RUNNER_GRIN_E2E_SEED: ${{ secrets.TEST_WALLET_SEED }}
@@ -146,6 +131,20 @@ jobs:
           TEST_RUNNER_GRIN_E2E_PROXY_URL: http://127.0.0.1:13414
         run: |
           set -euo pipefail
+          # Прокси живёт внутри этого шага: между шагами фоновый процесс
+          # может быть убит, и приложение осталось бы без ноды.
+          python3 scripts/floonet-post-fail-proxy.py \
+            --listen 13414 --target http://127.0.0.1:13413 --fail-broadcasts 1 \
+            > proxy.log 2>&1 &
+          PROXY_PID=$!
+          trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
+          sleep 2
+          if ! curl -s -X POST http://127.0.0.1:13414/v2/foreign \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"get_tip"}' | grep -q '"Ok"'; then
+            echo "прокси не поднялся"; cat proxy.log; exit 1
+          fi
+          echo "прокси готов"
           TIP=$(curl -s -X POST http://127.0.0.1:13413/v2/foreign \
             -H 'Content-Type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"get_tip"}' \
@@ -211,6 +210,14 @@ jobs:
       - name: Остановить прокси
         if: always()
         run: pkill -f floonet-post-fail-proxy.py || true
+
+      - name: Диагностика при сбое
+        if: failure()
+        run: |
+          echo "--- proxy.log ---"
+          tail -40 proxy.log 2>/dev/null || true
+          echo "--- grin-node.log ---"
+          tail -40 grin-node.log 2>/dev/null || true
 
       - name: Результаты UI-тестов (xcresult)
         if: always()
