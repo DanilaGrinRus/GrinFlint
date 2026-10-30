@@ -131,6 +131,23 @@ struct GrinFeeEstimate: Decodable {
     let total: UInt64
 }
 
+/// Результат двухфазной финализации: подпись сохранена, публикации ещё нет.
+struct GrinFinalizePrepared: Decodable {
+    let slate_id: String
+}
+
+/// Backend-статус перевода по slate_id (для сверки журнала после сбоя).
+struct GrinTransferStatus: Decodable {
+    let found: Bool
+    let confirmed: Bool?
+    let cancelled: Bool?
+    let direction: String?
+    let debited: UInt64?
+    let fee: UInt64?
+    let slate_state: String?
+    let has_repost: Bool?
+}
+
 struct GrinReceiveResult: Decodable {
     let slatepack: String
 }

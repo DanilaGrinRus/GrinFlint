@@ -17,6 +17,11 @@ enum WalletError: LocalizedError {
     /// Действие недоступно на текущей стадии операции (например, отмена
     /// после финализации или повтор публикации до подписи).
     case operationState(String)
+    /// Введённая seed-фраза не соответствует кошельку, который уже есть
+    /// в приложении. Восстановление остановлено, данные не менялись.
+    case seedMismatch
+    /// Журнал операций повреждён/не записывается; новые переводы запрещены.
+    case journalUnavailable(String)
 
     var errorDescription: String? {
         switch self {
@@ -42,6 +47,14 @@ enum WalletError: LocalizedError {
             )
         case .operationState(let details):
             return String(localized: "Действие недоступно: \(details).")
+        case .seedMismatch:
+            return String(
+                localized: "Введённая seed-фраза не соответствует кошельку, который уже есть в приложении. Восстановление остановлено; существующие данные не изменялись."
+            )
+        case .journalUnavailable(let details):
+            return String(
+                localized: "Журнал операций недоступен: \(details). Новые переводы заблокированы, чтобы не потерять незавершённую операцию."
+            )
         }
     }
 }

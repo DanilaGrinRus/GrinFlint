@@ -594,3 +594,65 @@ fn restore_height_requires_mnemonic() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+/// Статус по неизвестному slate_id — found:false; wallet_exists отражает
+/// наличие seed-файла (нужен, чтобы не открывать чужой кошелёк вслепую).
+#[test]
+fn transfer_status_and_wallet_exists() {
+    unsafe {
+        let dir = unique_dir("status-offline");
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            cs("http://127.0.0.1:1").as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create: {}", last_error());
+        assert_eq!(grin_wallet_wallet_exists(h), 0, "до создания seed-файла");
+
+        let _ = take_string(grin_wallet_create_seed(h, cs("pass").as_ptr(), 24, ptr::null()))
+            .expect("create_seed");
+        assert_eq!(grin_wallet_wallet_exists(h), 1, "seed-файл создан");
+        let _ = take_string(grin_wallet_open(h, cs("pass").as_ptr())).expect("open");
+
+        let status = take_string(grin_wallet_transfer_status(
+            h,
+            cs("00000000-0000-0000-0000-000000000001").as_ptr(),
+        ))
+        .expect("transfer_status");
+        let value: serde_json::Value = serde_json::from_str(&status).expect("json");
+        assert_eq!(value["found"], false, "{status}");
+
+        grin_wallet_destroy(h);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// prepare с невалидным ответом получателя возвращает ошибку, а не панику.
+#[test]
+fn finalize_prepare_rejects_bad_slate() {
+    unsafe {
+        let dir = unique_dir("prepare-bad");
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            cs("http://127.0.0.1:1").as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create: {}", last_error());
+        let _ = take_string(grin_wallet_create_seed(h, cs("pass").as_ptr(), 24, ptr::null()))
+            .expect("create_seed");
+        let _ = take_string(grin_wallet_open(h, cs("pass").as_ptr())).expect("open");
+
+        assert!(
+            grin_wallet_finalize_prepare(h, cs("BEGINSLATEPACK.not-a-real-slate").as_ptr())
+                .is_null(),
+            "невалидный ответ должен отклоняться"
+        );
+        let err = last_error();
+        assert!(!err.to_lowercase().contains("panic"), "{err}");
+
+        grin_wallet_destroy(h);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

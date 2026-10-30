@@ -177,10 +177,24 @@ fn restore_clean_dir_then_confirmed_transfer() {
             .unwrap_or_else(|| panic!("receive B: {}", last_error()));
         let response = field(&received, "slatepack");
 
+        // Двухфазная финализация: prepare подписывает и сохраняет Slate,
+        // статус подтверждает, что файл для repost на месте, repost публикует.
+        let prepared = take_string(grin_wallet_finalize_prepare(h_a, cs(&response).as_ptr()))
+            .unwrap_or_else(|| panic!("finalize_prepare: {}", last_error()));
+        assert_eq!(field(&prepared, "slate_id"), slate_id, "slate_id не совпал");
+        let status = take_string(grin_wallet_transfer_status(h_a, cs(&slate_id).as_ptr()))
+            .unwrap_or_else(|| panic!("transfer_status: {}", last_error()));
+        let value: serde_json::Value = serde_json::from_str(&status).expect("status json");
+        assert_eq!(value["found"], true, "{status}");
         assert_eq!(
-            grin_wallet_finalize(h_a, cs(&response).as_ptr()),
+            value["has_repost"], true,
+            "подписанный Slate не сохранён: {status}"
+        );
+        eprintln!("status после prepare: {status}");
+        assert_eq!(
+            grin_wallet_repost(h_a, cs(&slate_id).as_ptr()),
             0,
-            "finalize: {}",
+            "repost: {}",
             last_error()
         );
 

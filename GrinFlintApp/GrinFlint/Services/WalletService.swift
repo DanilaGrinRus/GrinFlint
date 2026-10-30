@@ -28,6 +28,11 @@ protocol WalletService: AnyObject {
     /// с которой начинать скан (nil/0 — с генезиса).
     func restore(mnemonic: String, restoreHeight: UInt64?) async throws
 
+    /// Slatepack-адрес, который соответствует seed-фразе. Считается на
+    /// временном кошельке и не трогает данные приложения: нужен, чтобы не
+    /// открыть чужой кошелёк при ошибке восстановления.
+    func address(forMnemonic mnemonic: String) async throws -> String
+
     /// Обновить состояние с ноды. В демо: «добывается блок» и
     /// неподтверждённые транзакции становятся подтверждёнными.
     func refresh() async throws
@@ -76,6 +81,9 @@ protocol WalletService: AnyObject {
     /// Незавершённый перевод (сохраняется на диск, переживает перезапуск).
     var pendingOperation: PendingOperation? { get async }
 
+    /// Предупреждение о журнале операций (повреждён/не записывается).
+    var journalWarning: String? { get async }
+
     /// Убрать запись о приёме, когда ответ уже передан отправителю.
     func dismissPending(id: UUID) async
 }
@@ -85,6 +93,7 @@ extension WalletService {
     var isDemo: Bool { true }
     var unavailableReason: String? { nil }
     var pendingOperation: PendingOperation? { nil }
+    var journalWarning: String? { nil }
     func dismissPending(id: UUID) async {}
     func markRequestSent(id: UUID) async {}
 }
@@ -116,6 +125,8 @@ final class UnavailableWalletService: WalletService {
     func createWallet(mnemonicLength: Int) async throws -> String { try bail() }
 
     func restore(mnemonic: String, restoreHeight: UInt64?) async throws { try bail() }
+
+    func address(forMnemonic mnemonic: String) async throws -> String { try bail() }
 
     func refresh() async throws { try bail() }
 
@@ -217,6 +228,15 @@ final class MockWalletService: WalletService {
             throw WalletError.invalidMnemonic
         }
         try await Task.sleep(nanoseconds: 400_000_000)
+    }
+
+    /// В демо адрес один и тот же: проверка seed→адрес проверяется на FFI.
+    func address(forMnemonic mnemonic: String) async throws -> String {
+        let words = mnemonic.split(whereSeparator: { $0 == " " || $0 == "\n" })
+        guard words.count == 12 || words.count == 24 else {
+            throw WalletError.invalidMnemonic
+        }
+        return slatepackAddress
     }
 
     func refresh() async throws {

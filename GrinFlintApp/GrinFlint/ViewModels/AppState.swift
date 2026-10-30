@@ -81,11 +81,17 @@ final class AppState {
     func restore(mnemonic: String, restoreHeight: UInt64? = nil) {
         isWorking = true
         onboardingError = nil
-        restoreStage = restoreHeight.map { "Создаём кошелёк и сканируем с высоты \($0)…" }
-            ?? "Создаём кошелёк из seed-фразы…"
+        restoreStage = "Проверяем seed-фразу…"
         Task {
             do {
-                try await restoreWithProgress(mnemonic: mnemonic, restoreHeight: restoreHeight)
+                // Адрес, который обязан быть у этого seed. Считается на
+                // временном кошельке: данные приложения не затрагиваются.
+                let expected = try await service.address(forMnemonic: mnemonic)
+                try await restoreWithProgress(
+                    mnemonic: mnemonic,
+                    restoreHeight: restoreHeight,
+                    expectedAddress: expected
+                )
             } catch {
                 onboardingError = error.localizedDescription
                 restoreStage = nil
@@ -94,26 +100,37 @@ final class AppState {
         }
     }
 
-    /// Восстановление по этапам: создание → открытие → скан выходов.
-    /// Прерванное восстановление можно продолжить: если seed-файл уже создан,
-    /// кошелёк просто открывается (повторная генерация не выполняется).
-    private func restoreWithProgress(mnemonic: String, restoreHeight: UInt64?) async throws {
-        var alreadyOpened = false
+    /// Восстановление по этапам, с обязательной сверкой seed → адрес.
+    ///
+    /// Ошибка восстановления больше не приводит к слепому открытию прежнего
+    /// кошелька: если кошелёк уже существует, он открывается, но адрес обязан
+    /// совпасть с адресом введённой фразы. Иначе восстановление остановлено,
+    /// данные не изменяются.
+    private func restoreWithProgress(
+        mnemonic: String,
+        restoreHeight: UInt64?,
+        expectedAddress: String
+    ) async throws {
+        var openedExisting = false
         do {
-            try await service.restore(mnemonic: mnemonic, restoreHeight: restoreHeight)
+            try await service.open()
+            openedExisting = true
+            restoreStage = "Сверяем кошелёк с seed-фразой…"
         } catch {
-            restoreStage = "Кошелёк уже создан — продолжаем открытие…"
-            do {
-                try await service.open()
-                alreadyOpened = true
-            } catch {
-                throw error
-            }
+            // Кошелька нет (или он не открылся) — создаём из фразы ниже.
+            openedExisting = false
         }
 
-        if !alreadyOpened {
+        if !openedExisting {
+            restoreStage = "Создаём кошелёк из seed-фразы…"
+            try await service.restore(mnemonic: mnemonic, restoreHeight: restoreHeight)
             restoreStage = "Открываем кошелёк…"
             try await service.open()
+        }
+
+        let actual = await service.slatepackAddress
+        guard actual == expectedAddress else {
+            throw WalletError.seedMismatch
         }
 
         restoreStage = "Сканируем выходы с ноды — это может занять несколько минут…"

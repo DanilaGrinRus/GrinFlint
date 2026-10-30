@@ -178,6 +178,53 @@ final class PendingOperationsStoreTests: XCTestCase {
         XCTAssertTrue(PendingOperationStage.requestSent.acceptsResponse)
         XCTAssertFalse(PendingOperationStage.finalized.acceptsResponse)
     }
+
+    func testSaveWritesBackup() {
+        let store = PendingOperationsStore(directory: directory)
+        store.upsert(sendOperation())
+        let main = directory.appendingPathComponent("pending-operations.json")
+        let backup = directory.appendingPathComponent("pending-operations.json.bak")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: main.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backup.path))
+        XCTAssertNil(store.errorDescription)
+    }
+
+    func testCorruptMainLoadsBackupAndReports() throws {
+        let store = PendingOperationsStore(directory: directory)
+        store.upsert(sendOperation())
+        try Data("not json".utf8).write(
+            to: directory.appendingPathComponent("pending-operations.json")
+        )
+        let reloaded = PendingOperationsStore(directory: directory)
+        XCTAssertEqual(reloaded.operations.count, 1, "должна загрузиться резервная копия")
+        XCTAssertNotNil(reloaded.loadError)
+        XCTAssertNotNil(reloaded.errorDescription)
+    }
+
+    func testCorruptMainAndBackupReportError() throws {
+        let store = PendingOperationsStore(directory: directory)
+        store.upsert(sendOperation())
+        try Data("not json".utf8).write(
+            to: directory.appendingPathComponent("pending-operations.json")
+        )
+        try Data("not json".utf8).write(
+            to: directory.appendingPathComponent("pending-operations.json.bak")
+        )
+        let reloaded = PendingOperationsStore(directory: directory)
+        XCTAssertTrue(reloaded.operations.isEmpty)
+        XCTAssertNotNil(reloaded.loadError)
+        XCTAssertNotNil(reloaded.errorDescription)
+    }
+
+    func testSaveFailureIsReported() throws {
+        let file = directory.appendingPathComponent("not-a-directory")
+        try Data().write(to: file)
+        let store = PendingOperationsStore(directory: file)
+        store.upsert(sendOperation())
+        XCTAssertEqual(store.operations.count, 1, "операция остаётся в памяти")
+        XCTAssertNotNil(store.lastSaveError)
+        XCTAssertNotNil(store.errorDescription)
+    }
 }
 
 /// Форматирование и разбор сумм — чистая логика без FFI.

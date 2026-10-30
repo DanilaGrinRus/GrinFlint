@@ -13,7 +13,8 @@ use grin_wallet_api::{Foreign, Owner};
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{
-    InitTxArgs, InitTxSendArgs, NodeClient, Slate, SlateState, SlatepackAddress, WalletInst,
+    InitTxArgs, InitTxSendArgs, NodeClient, Slate, SlateState, SlatepackAddress, TxLogEntryType,
+    WalletInst,
 };
 use grin_core::core::hash::Hashed;
 use grin_core::genesis;
@@ -647,7 +648,54 @@ pub extern "C" fn grin_wallet_receive(
     }
 }
 
+/// Подписать ответ получателя и сохранить подписанный Slate для repost.
+/// Публикация — отдельно (`grin_wallet_repost`/`grin_wallet_finalize`), чтобы
+/// Swift записывал стадию finalized только после реальной подписи и записи
+/// файла на диск.
+fn finalize_prepare(w: &mut GrinWallet, slatepack: String) -> Result<Slate, String> {
+    let slate = w
+        .owner
+        .slate_from_slatepack_message(w.mask.as_ref(), slatepack, vec![0, 1])
+        .map_err(|e| format!("slate_from_slatepack_message: {e}"))?;
+    let finalized = w
+        .owner
+        .finalize_tx(w.mask.as_ref(), &slate)
+        .map_err(|e| format!("finalize_tx: {e}"))?;
+    // Сначала фиксируем подписанную tx на диске: если post_tx упадёт,
+    // её можно опубликовать снова без повторной подписи.
+    store_repost_slate(w, &finalized)?;
+    Ok(finalized)
+}
+
+/// Подписать ответ получателя и сохранить Slate, но НЕ публиковать.
+/// Возвращает {"slate_id": "..."}; NULL — ошибка (журнал менять нельзя).
+#[no_mangle]
+pub extern "C" fn grin_wallet_finalize_prepare(
+    handle: *mut GrinWallet,
+    slatepack_response: *const c_char,
+) -> *mut c_char {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
+        let w = wallet_mut(handle)?;
+        global::set_local_chain_type(w.chain_type);
+        let slatepack = c_str(slatepack_response).ok_or("slatepack is null")?;
+        let slab = finalize_prepare(w, slatepack.clone())?;
+        Ok(json!({ "slate_id": slab.id.to_string() }))
+    });
+    match result {
+        Ok(Ok(v)) => ok_json(v),
+        Ok(Err(e)) => {
+            set_error(e);
+            fail()
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_finalize_prepare"));
+            fail()
+        }
+    }
+}
+
 /// Финализировать ответ получателя и отправить в сеть. 0 — ок, -1 — ошибка.
+/// Обертка над prepare + post для старых вызовов и тестов.
 #[no_mangle]
 pub extern "C" fn grin_wallet_finalize(
     handle: *mut GrinWallet,
@@ -657,17 +705,7 @@ pub extern "C" fn grin_wallet_finalize(
         let w = wallet_mut(handle)?;
         global::set_local_chain_type(w.chain_type);
         let slatepack = c_str(slatepack_response).ok_or("slatepack is null")?;
-        let slate = w
-            .owner
-            .slate_from_slatepack_message(w.mask.as_ref(), slatepack, vec![0, 1])
-            .map_err(|e| format!("slate_from_slatepack_message: {e}"))?;
-        let finalized = w
-            .owner
-            .finalize_tx(w.mask.as_ref(), &slate)
-            .map_err(|e| format!("finalize_tx: {e}"))?;
-        // Сначала фиксируем подписанную tx на диске: если post_tx упадёт,
-        // её можно опубликовать снова без повторной подписи.
-        store_repost_slate(w, &finalized)?;
+        let finalized = finalize_prepare(w, slatepack)?;
         w.owner
             .post_tx(w.mask.as_ref(), &finalized, true)
             .map_err(|e| format!("post_tx: {e}"))?;
@@ -713,6 +751,91 @@ pub extern "C" fn grin_wallet_repost(handle: *mut GrinWallet, slate_id: *const c
         }
         Err(_) => {
             set_error(panic_error("grin_wallet_repost"));
+            -1
+        }
+    }
+}
+
+/// Статус транзакции по slate_id — для восстановления журнала после сбоя.
+/// Возвращает {"found":bool,"confirmed":bool,"cancelled":bool,
+/// "direction":"send|receive","amount":u64,"fee":u64,
+/// "slate_state":"Standard3"|null,"has_repost":bool}.
+#[no_mangle]
+pub extern "C" fn grin_wallet_transfer_status(
+    handle: *mut GrinWallet,
+    slate_id: *const c_char,
+) -> *mut c_char {
+    let result = guarded(|| -> Result<serde_json::Value, String> {
+        let w = wallet_mut(handle)?;
+        global::set_local_chain_type(w.chain_type);
+        let slate_id = c_str(slate_id).ok_or("slate_id is null")?;
+        let uuid = uuid::Uuid::parse_str(&slate_id).map_err(|e| format!("bad uuid: {e}"))?;
+        let (_, txs) = w
+            .owner
+            .retrieve_txs(w.mask.as_ref(), true, None, Some(uuid), None)
+            .map_err(|e| format!("retrieve_txs: {e}"))?;
+        let Some(entry) = txs.first() else {
+            return Ok(json!({ "found": false }));
+        };
+        let type_str = format!("{:?}", entry.tx_type);
+        let cancelled = matches!(
+            entry.tx_type,
+            TxLogEntryType::TxSentCancelled
+                | TxLogEntryType::TxReceivedCancelled
+                | TxLogEntryType::TxReverted
+        );
+        let fee = entry.fee.as_ref().map(|f| f.fee()).unwrap_or(0);
+        let debited = entry.amount_debited;
+        let has_repost = repost_dir(w).join(format!("{uuid}.json")).exists();
+        let slate_state = entry
+            .tx_slate_state
+            .as_ref()
+            .map(|state| format!("{state:?}"));
+        Ok(json!({
+            "found": true,
+            "confirmed": entry.confirmed,
+            "cancelled": cancelled,
+            "direction": if type_str.contains("Received") { "receive" } else { "send" },
+            "debited": debited,
+            "fee": fee,
+            "slate_state": slate_state,
+            "has_repost": has_repost,
+        }))
+    });
+    match result {
+        Ok(Ok(v)) => ok_json(v),
+        Ok(Err(e)) => {
+            set_error(e);
+            fail()
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_transfer_status"));
+            fail()
+        }
+    }
+}
+
+/// 1 — seed-файл кошелька существует, 0 — нет. Нужен, чтобы не пытаться
+/// «восстановить» поверх существующего кошелька и не открывать его вслепую.
+#[no_mangle]
+pub extern "C" fn grin_wallet_wallet_exists(handle: *mut GrinWallet) -> i32 {
+    let result = guarded(|| -> Result<bool, String> {
+        let w = wallet_mut(handle)?;
+        let data_dir = w
+            .config_path
+            .parent()
+            .ok_or_else(|| "config path без каталога".to_string())?;
+        Ok(data_dir.join("wallet_data").join("wallet.seed").exists())
+    });
+    match result {
+        Ok(Ok(true)) => 1,
+        Ok(Ok(false)) => 0,
+        Ok(Err(e)) => {
+            set_error(e);
+            -1
+        }
+        Err(_) => {
+            set_error(panic_error("grin_wallet_wallet_exists"));
             -1
         }
     }

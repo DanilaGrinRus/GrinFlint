@@ -16,6 +16,8 @@ final class WalletViewModel {
     private(set) var errorMessage: String?
     /// Незавершённый перевод (этап операции сохранён на диск).
     private(set) var pendingOperation: PendingOperation?
+    /// Проблема журнала операций (повреждён/не записывается).
+    private(set) var journalWarning: String?
 
     /// Демо-режим: сервис работает без сети Grin (MockWalletService).
     let isDemoMode: Bool
@@ -38,6 +40,7 @@ final class WalletViewModel {
         transactions = await service.transactions
         slatepackAddress = await service.slatepackAddress
         pendingOperation = await service.pendingOperation
+        journalWarning = await service.journalWarning
     }
 
     /// Убрать запись о приёме после того, как ответ передан отправителю.

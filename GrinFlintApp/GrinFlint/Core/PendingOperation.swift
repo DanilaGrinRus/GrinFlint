@@ -119,11 +119,26 @@ struct PendingOperation: Identifiable, Codable, Equatable {
 /// кошелёк из-за журнала не падает.
 final class PendingOperationsStore {
     private let fileURL: URL
+    private let backupURL: URL
     private(set) var operations: [PendingOperation] = []
+    /// Ошибка чтения журнала: журнал повреждён/недоступен. Пока она есть,
+    /// новые переводы создавать нельзя (fail closed).
+    private(set) var loadError: String?
+    /// Ошибка последней записи; операция остаётся в памяти, но диск её не знает.
+    private(set) var lastSaveError: String?
 
     init(directory: URL) {
         fileURL = directory.appendingPathComponent("pending-operations.json")
+        backupURL = directory.appendingPathComponent("pending-operations.json.bak")
         load()
+    }
+
+    /// Текст для UI/логов: nil, если журнал в порядке.
+    var errorDescription: String? {
+        let parts = [loadError, lastSaveError]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
 
     /// Самая свежая операция (включая терминальные — для журнала/диагностики).
@@ -171,11 +186,40 @@ final class PendingOperationsStore {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode([PendingOperation].self, from: data) else {
+        let fileManager = FileManager.default
+        if let data = try? Data(contentsOf: fileURL) {
+            if let decoded = try? JSONDecoder().decode([PendingOperation].self, from: data) {
+                operations = decoded
+                return
+            }
+            // Основной файл повреждён: сохраняем копию как есть и пробуем
+            // резервную копию. Молча терять журнал нельзя.
+            let stamp = ISO8601DateFormatter().string(from: Date())
+                .replacingOccurrences(of: ":", with: "-")
+            let corruptURL = fileURL
+                .deletingLastPathComponent()
+                .appendingPathComponent("pending-operations.corrupt-\(stamp).json")
+            try? data.write(to: corruptURL, options: .atomic)
+
+            if let backup = try? Data(contentsOf: backupURL),
+               let decoded = try? JSONDecoder().decode([PendingOperation].self, from: backup) {
+                operations = decoded
+                loadError = "Журнал операций был повреждён; загружена резервная копия. "
+                    + "Повреждённый файл сохранён рядом. Новые переводы заблокированы до проверки."
+                return
+            }
+            loadError = "Журнал операций повреждён, резервная копия недоступна. "
+                + "Новые переводы заблокированы; проверьте историю и данные кошелька."
             return
         }
-        operations = decoded
+
+        // Основного файла нет: если есть резервная копия, это признак сбоя.
+        if let backup = try? Data(contentsOf: backupURL),
+           let decoded = try? JSONDecoder().decode([PendingOperation].self, from: backup) {
+            operations = decoded
+            loadError = "Основной журнал операций отсутствует; загружена резервная копия. "
+                + "Новые переводы заблокированы до проверки."
+        }
     }
 
     private func save() {
@@ -196,8 +240,11 @@ final class PendingOperationsStore {
             let options: Data.WritingOptions = [.atomic]
             #endif
             try data.write(to: fileURL, options: options)
+            try data.write(to: backupURL, options: options)
+            lastSaveError = nil
         } catch {
-            // Журнал — вспомогательный: операция всё равно в памяти.
+            // Не скрываем: UI покажет предупреждение, новые переводы блокируются.
+            lastSaveError = "Не удалось сохранить журнал операций: \(error.localizedDescription)"
         }
     }
 }

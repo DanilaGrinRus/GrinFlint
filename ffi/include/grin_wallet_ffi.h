@@ -70,6 +70,18 @@ char *grin_wallet_receive(GrinWallet *handle, const char *slatepack);
 /* Финализировать ответ получателя и отправить в сеть. 0 — ок, -1 — ошибка. */
 int32_t grin_wallet_finalize(GrinWallet *handle, const char *slatepack_response);
 
+/* Двухфазная финализация: подписать ответ и сохранить Slate для repost,
+ * но НЕ публиковать. Возвращает {"slate_id":"..."}; NULL — ошибка. */
+char *grin_wallet_finalize_prepare(GrinWallet *handle, const char *slatepack_response);
+
+/* Статус tx по slate_id для восстановления журнала после сбоя:
+ * {"found":bool,"confirmed":bool,"cancelled":bool,"direction":"send|receive",
+ *  "debited":u64,"fee":u64,"slate_state":"Standard3"|null,"has_repost":bool}. */
+char *grin_wallet_transfer_status(GrinWallet *handle, const char *slate_id);
+
+/* 1 — seed-файл кошелька существует, 0 — нет; -1 — ошибка. */
+int32_t grin_wallet_wallet_exists(GrinWallet *handle);
+
 /* Отменить неподтверждённую транзакцию по slate_id (uuid). */
 int32_t grin_wallet_cancel(GrinWallet *handle, const char *slate_id);
 

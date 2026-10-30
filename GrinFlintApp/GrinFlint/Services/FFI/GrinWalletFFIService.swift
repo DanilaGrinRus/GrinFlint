@@ -21,6 +21,7 @@ actor GrinWalletFFIService: WalletService {
 
     private let handle: GrinWalletHandle
     private let password: String
+    private let chain: Chain
     /// Журнал незавершённых переводов: Slatepack в истории не хранится,
     /// поэтому этапы переживают обновление истории и перезапуск приложения.
     private let pending: PendingOperationsStore
@@ -36,6 +37,7 @@ actor GrinWalletFFIService: WalletService {
 
     init(dataDir: String, nodeURL: String, chain: Chain, password: String) throws {
         self.password = password
+        self.chain = chain
         // Журнал операций лежит рядом с данными кошелька.
         self.pending = PendingOperationsStore(
             directory: URL(fileURLWithPath: dataDir, isDirectory: true)
@@ -45,6 +47,9 @@ actor GrinWalletFFIService: WalletService {
 
     /// Незавершённый перевод для экрана портфеля.
     var pendingOperation: PendingOperation? { pending.active }
+
+    /// Предупреждение о журнале операций (повреждён/не записывается).
+    var journalWarning: String? { pending.errorDescription }
 
     func dismissPending(id: UUID) async {
         pending.remove(id: id)
@@ -78,6 +83,35 @@ actor GrinWalletFFIService: WalletService {
             grin_wallet_open(h.raw, password)
         }, handle: handle, as: GrinAddressResult.self)
         slatepackAddress = result.address
+        // После сбоя журнал мог разойтись с backend: сверяем стадии.
+        reconcileJournal()
+    }
+
+    /// Адрес, который соответствует seed-фразе. Считается на временном
+    /// кошельке в отдельном каталоге и удаляется: данные приложения не
+    /// затрагиваются, нода не нужна (скан не запускается).
+    func address(forMnemonic mnemonic: String) async throws -> String {
+        let words = mnemonic.split(whereSeparator: { $0 == " " || $0 == "\n" })
+        guard words.count == 12 || words.count == 24 else {
+            throw WalletError.invalidMnemonic
+        }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grinflint-seed-check-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let temp = try GrinWalletHandle(
+            dataDir: directory.path,
+            nodeURL: "http://127.0.0.1:1",
+            chain: chain.rawValue
+        )
+        let _: GrinMnemonicResult = try GrinFFI.call({ h in
+            grin_wallet_create_seed_at(h.raw, password, UInt32(words.count), mnemonic, 0)
+        }, handle: temp, as: GrinMnemonicResult.self)
+        let opened: GrinAddressResult = try GrinFFI.call({ h in
+            grin_wallet_open(h.raw, password)
+        }, handle: temp, as: GrinAddressResult.self)
+        return opened.address
     }
 
     // MARK: WalletService
@@ -93,6 +127,7 @@ actor GrinWalletFFIService: WalletService {
         }, handle: handle, as: GrinTxsResult.self)
         transactions = t.txs.map(Self.mapTx)
         reconcilePending()
+        reconcileJournal()
     }
 
     /// Реальная комиссия backend до подписания (estimate_only).
@@ -143,6 +178,11 @@ actor GrinWalletFFIService: WalletService {
     }
 
     func prepareSend(destination: String, amountText: String) async throws -> SendProposal {
+        // Журнал повреждён или не записался: backend мог создать операцию,
+        // которую мы не сможем продолжить. Новые переводы запрещены.
+        if let warning = pending.errorDescription {
+            throw WalletError.journalUnavailable(warning)
+        }
         // Один незавершённый перевод за раз: повторный вызов подписал бы
         // вторую транзакцию и задвоил операцию.
         if let awaiting = pending.unfinishedSend {
@@ -218,21 +258,31 @@ actor GrinWalletFFIService: WalletService {
             }, handle: handle)
             return
         }
+
+        // Фаза 1: подписать и сохранить Slate на диск. Журнал получает
+        // finalized ТОЛЬКО после успешного возврата этой функции: иначе при
+        // сбое UI предлагал бы repost несуществующей подписи.
+        let prepared: GrinFinalizePrepared = try GrinFFI.call({ h in
+            grin_wallet_finalize_prepare(h.raw, slatepackResponse)
+        }, handle: handle, as: GrinFinalizePrepared.self)
+
+        if let txID = operation.txID,
+           txID.caseInsensitiveCompare(prepared.slate_id) != .orderedSame {
+            throw WalletError.operationState("ответ относится к другому переводу")
+        }
         operation.stage = .finalized
         operation.lastError = nil
+        if operation.txID == nil { operation.txID = prepared.slate_id }
         pending.upsert(operation)
 
+        // Фаза 2: публикация сохранённого Slate. Ошибка оставляет finalized,
+        // чтобы UI предложил «Опубликовать снова».
         do {
             try GrinFFI.callStatus({ h in
-                grin_wallet_finalize(h.raw, slatepackResponse)
+                grin_wallet_repost(h.raw, prepared.slate_id)
             }, handle: handle)
         } catch {
             operation.lastError = error.localizedDescription
-            // Ошибка post_tx: подпись уже сохранена, доступен repost.
-            // Ошибка разбора/подписи: возвращаемся к ожиданию ответа.
-            if !error.localizedDescription.contains("post_tx") {
-                operation.stage = .requestSent
-            }
             pending.upsert(operation)
             throw error
         }
@@ -305,6 +355,31 @@ actor GrinWalletFFIService: WalletService {
     }
 
     // MARK: журнал и маппинг
+
+    /// Сверка журнала с backend: подпись могла быть создана до записи стадии
+    /// (и наоборот — стадия finalized без подписи после сбоя).
+    private func reconcileJournal() {
+        for var operation in pending.operations
+        where operation.kind == .send && !operation.stage.isTerminal {
+            guard let txID = operation.txID else { continue }
+            guard let status: GrinTransferStatus = try? GrinFFI.call({ h in
+                grin_wallet_transfer_status(h.raw, txID)
+            }, handle: handle, as: GrinTransferStatus.self) else { continue }
+
+            let snapshot = TransferStatusSnapshot(
+                found: status.found,
+                confirmed: status.confirmed ?? false,
+                cancelled: status.cancelled ?? false,
+                hasRepost: status.has_repost ?? false,
+                slateState: status.slate_state
+            )
+            if let stage = JournalReconciler.stage(current: operation.stage, status: snapshot) {
+                operation.stage = stage
+                operation.lastError = nil
+                pending.upsert(operation)
+            }
+        }
+    }
 
     /// Подтверждение/отмена, замеченные в истории grin-wallet, двигают стадию.
     private func reconcilePending() {

@@ -9,6 +9,9 @@ struct PortfolioView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     balanceCard
+                    if let warning = viewModel.journalWarning {
+                        journalWarningCard(warning)
+                    }
                     if let pending = viewModel.pendingOperation {
                         PendingOperationCard(operation: pending)
                     }
@@ -53,6 +56,20 @@ struct PortfolioView: View {
                 }
             }
         }
+    }
+
+    private func journalWarningCard(_ text: String) -> some View {
+        GrinCard {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Журнал операций", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+                Text(text)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityIdentifier("portfolio.journalWarning")
     }
 
     private var balanceCard: some View {
