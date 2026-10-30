@@ -124,6 +124,9 @@ final class PendingOperationsStore {
     /// Ошибка чтения журнала: журнал повреждён/недоступен. Пока она есть,
     /// новые переводы создавать нельзя (fail closed).
     private(set) var loadError: String?
+    /// Журнал восстановлен из резервной копии: данные целы, но пользователь
+    /// должен знать о сбое. Новые переводы при этом разрешены.
+    private(set) var recoveryWarning: String?
     /// Ошибка последней записи; операция остаётся в памяти, но диск её не знает.
     private(set) var lastSaveError: String?
 
@@ -133,9 +136,14 @@ final class PendingOperationsStore {
         load()
     }
 
+    /// Новые переводы запрещены, только если журнал реально недоступен.
+    var blocksNewSend: Bool {
+        loadError != nil || lastSaveError != nil
+    }
+
     /// Текст для UI/логов: nil, если журнал в порядке.
     var errorDescription: String? {
-        let parts = [loadError, lastSaveError]
+        let parts = [loadError, recoveryWarning, lastSaveError]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
@@ -204,8 +212,10 @@ final class PendingOperationsStore {
             if let backup = try? Data(contentsOf: backupURL),
                let decoded = try? JSONDecoder().decode([PendingOperation].self, from: backup) {
                 operations = decoded
-                loadError = "Журнал операций был повреждён; загружена резервная копия. "
-                    + "Повреждённый файл сохранён рядом. Новые переводы заблокированы до проверки."
+                recoveryWarning = "Журнал операций был повреждён; загружена резервная копия. "
+                    + "Повреждённый файл сохранён рядом."
+                // Чиним основной файл, чтобы блокировка не стала вечной.
+                save()
                 return
             }
             loadError = "Журнал операций повреждён, резервная копия недоступна. "
@@ -217,8 +227,8 @@ final class PendingOperationsStore {
         if let backup = try? Data(contentsOf: backupURL),
            let decoded = try? JSONDecoder().decode([PendingOperation].self, from: backup) {
             operations = decoded
-            loadError = "Основной журнал операций отсутствует; загружена резервная копия. "
-                + "Новые переводы заблокированы до проверки."
+            recoveryWarning = "Основной журнал операций отсутствует; загружена резервная копия."
+            save()
         }
     }
 

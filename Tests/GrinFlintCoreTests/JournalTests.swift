@@ -197,8 +197,14 @@ final class PendingOperationsStoreTests: XCTestCase {
         )
         let reloaded = PendingOperationsStore(directory: directory)
         XCTAssertEqual(reloaded.operations.count, 1, "должна загрузиться резервная копия")
-        XCTAssertNotNil(reloaded.loadError)
-        XCTAssertNotNil(reloaded.errorDescription)
+        XCTAssertNil(reloaded.loadError)
+        XCTAssertNotNil(reloaded.recoveryWarning)
+        XCTAssertFalse(reloaded.blocksNewSend, "после восстановления переводы разрешены")
+
+        // Основной файл чинится сразу: следующий запуск без предупреждений.
+        let repaired = PendingOperationsStore(directory: directory)
+        XCTAssertNil(repaired.errorDescription)
+        XCTAssertEqual(repaired.operations.count, 1)
     }
 
     func testCorruptMainAndBackupReportError() throws {
@@ -214,6 +220,7 @@ final class PendingOperationsStoreTests: XCTestCase {
         XCTAssertTrue(reloaded.operations.isEmpty)
         XCTAssertNotNil(reloaded.loadError)
         XCTAssertNotNil(reloaded.errorDescription)
+        XCTAssertTrue(reloaded.blocksNewSend)
     }
 
     func testSaveFailureIsReported() throws {
@@ -224,6 +231,7 @@ final class PendingOperationsStoreTests: XCTestCase {
         XCTAssertEqual(store.operations.count, 1, "операция остаётся в памяти")
         XCTAssertNotNil(store.lastSaveError)
         XCTAssertNotNil(store.errorDescription)
+        XCTAssertTrue(store.blocksNewSend)
     }
 }
 

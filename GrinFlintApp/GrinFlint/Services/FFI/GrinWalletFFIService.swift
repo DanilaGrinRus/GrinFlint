@@ -180,8 +180,10 @@ actor GrinWalletFFIService: WalletService {
     func prepareSend(destination: String, amountText: String) async throws -> SendProposal {
         // Журнал повреждён или не записался: backend мог создать операцию,
         // которую мы не сможем продолжить. Новые переводы запрещены.
-        if let warning = pending.errorDescription {
-            throw WalletError.journalUnavailable(warning)
+        if pending.blocksNewSend {
+            throw WalletError.journalUnavailable(
+                pending.errorDescription ?? "журнал операций недоступен"
+            )
         }
         // Один незавершённый перевод за раз: повторный вызов подписал бы
         // вторую транзакцию и задвоил операцию.
