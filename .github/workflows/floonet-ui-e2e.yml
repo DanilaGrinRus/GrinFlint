@@ -112,16 +112,7 @@ jobs:
             RESP=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:13413/v2/owner \
               -H 'Content-Type: application/json' \
               -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' || true)
-            S=$(printf '%s' "$RESP" | python3 -c '
-import json, sys
-raw = sys.stdin.read()
-try:
-    data = json.loads(raw)
-except Exception:
-    print("")
-    raise SystemExit(0)
-print((data.get("result") or {}).get("Ok", {}).get("sync_status", ""))
-' 2>/dev/null || true)
+            S=$(printf '%s' "$RESP" | sed -n 's/.*"sync_status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' || true)
             echo "poll $i: $S"
             [ "$S" = "no_sync" ] && exit 0
             if [ -z "$S" ] && [ $((i % 6)) -eq 0 ]; then
