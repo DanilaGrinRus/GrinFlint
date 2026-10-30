@@ -101,21 +101,32 @@ jobs:
           nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
 
       - name: Ожидание синхронизации ноды
-        timeout-minutes: 30
+        timeout-minutes: 35
         run: |
           SECRET_FILE="$HOME/.grin/test/.api_secret"
           test -f "$SECRET_FILE" || { echo "нет $SECRET_FILE"; exit 1; }
           SECRET="$(cat "$SECRET_FILE")"
-          for i in $(seq 1 120); do
+          for i in $(seq 1 180); do
             sleep 10
             # Нода может ещё не отвечать: пустой/невалидный ответ — не ошибка шага.
             RESP=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:13413/v2/owner \
               -H 'Content-Type: application/json' \
               -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' || true)
-            S=$(printf '%s' "$RESP" | grep -o '"sync_status":"[^"]*"' | cut -d'"' -f4 || true)
+            S=$(printf '%s' "$RESP" | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except Exception:
+    print("")
+    raise SystemExit(0)
+print((data.get("result") or {}).get("Ok", {}).get("sync_status", ""))
+' 2>/dev/null || true)
             echo "poll $i: $S"
             [ "$S" = "no_sync" ] && exit 0
             if [ -z "$S" ] && [ $((i % 6)) -eq 0 ]; then
+              echo "--- owner API ответ ---"
+              printf '%s\n' "${RESP:0:200}"
               echo "--- node log tail ---"
               tail -5 grin-node.log 2>/dev/null || true
             fi
