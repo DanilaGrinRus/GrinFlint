@@ -61,6 +61,14 @@ enum BiometricAuth {
         return Date().timeIntervalSince(at) <= seconds
     }
 
+    /// Сбрасывает окно «недавнего подтверждения» и контекст Keychain.
+    /// Вызывается при любой блокировке (ручной, фон, таймер): после неё
+    /// старый результат не должен заменять новый Face ID/код устройства.
+    static func invalidateRecentConfirmation() {
+        lastSuccessAt = nil
+        authenticatedContext = nil
+    }
+
     /// Причина, по которой подтверждение недоступно (nil — доступно).
     static var unavailableReason: String? {
         guard !isAvailable else { return nil }
@@ -117,6 +125,14 @@ enum BiometricAuth {
     }
 
     // MARK: - Только для UI-тестов в симуляторе
+
+    #if targetEnvironment(simulator)
+    /// Тестовая установка «недавнего подтверждения» без системного диалога.
+    static func testSetRecentConfirmation(at date: Date) {
+        lastSuccessAt = date
+        authenticatedContext = LAContext()
+    }
+    #endif
 
     private enum SimulatorOverride: String {
         case allow

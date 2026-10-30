@@ -37,19 +37,26 @@ final class AppLockManager {
     /// Экран ушёл в неактивное состояние (системный диалог, переключатель):
     /// закрываем содержимое, но не считаем это новой блокировкой — иначе
     /// системный запрос Face ID во время разблокировки сам себе мешал бы.
+    /// Recent-auth всё равно сбрасывается: после закрытия экрана старый
+    /// результат не должен разблокировать кошелёк без нового подтверждения.
     func sceneWillResignActive() {
         isSceneActive = false
-        stopTimer()
-        if WalletLock.isProtectionEnabled { isLocked = true }
+        if WalletLock.isProtectionEnabled {
+            applyLock(incrementGeneration: false)
+        } else {
+            stopTimer()
+        }
     }
 
     /// Приложение ушло в фон — это новая блокировка. Неуспевший вернуться
     /// результат аутентификации не должен её снять.
     func sceneDidEnterBackground() {
         isSceneActive = false
-        stopTimer()
-        lockGeneration &+= 1
-        if WalletLock.isProtectionEnabled { isLocked = true }
+        if WalletLock.isProtectionEnabled {
+            applyLock(incrementGeneration: true)
+        } else {
+            stopTimer()
+        }
     }
 
     // MARK: Активность
@@ -98,9 +105,16 @@ final class AppLockManager {
     /// Блокировка вручную (кнопка в настройках).
     func lockNow() {
         guard WalletLock.isProtectionEnabled else { return }
-        lockGeneration &+= 1
+        applyLock(incrementGeneration: true)
+    }
+
+    /// Единая точка блокировки: закрывает экран и гарантированно сбрасывает
+    /// недавнее подтверждение, чтобы после lock/фона требовался новый Face ID.
+    private func applyLock(incrementGeneration: Bool) {
+        if incrementGeneration { lockGeneration &+= 1 }
         isLocked = true
         stopTimer()
+        BiometricAuth.invalidateRecentConfirmation()
     }
 
     // MARK: Таймер
@@ -112,9 +126,7 @@ final class AppLockManager {
         let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                self.lockGeneration &+= 1
-                self.isLocked = true
-                self.stopTimer()
+                self.applyLock(incrementGeneration: true)
             }
         }
         RunLoop.main.add(timer, forMode: .common)

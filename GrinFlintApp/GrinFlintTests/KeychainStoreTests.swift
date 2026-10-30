@@ -49,6 +49,9 @@ final class KeychainStoreTests: XCTestCase {
         XCTAssertFalse(password.isEmpty)
         XCTAssertTrue(KeychainStore.testHasProtectedRecord(service: service))
         XCTAssertFalse(KeychainStore.testHasLegacyRecord(service: service))
+        // В симуляторе ACL не применяется: запись не должна выдаваться за защищённую.
+        XCTAssertEqual(KeychainStore.testProtectionState(service: service), .noUserPresence)
+        XCTAssertEqual(KeychainStore.lastProtection, .legacyNoAuth)
     }
 
     func testReusesExistingPassword() throws {
@@ -77,7 +80,10 @@ final class KeychainStoreTests: XCTestCase {
 
         let loaded = try KeychainStore.loadPassword(service: service)
         XCTAssertEqual(loaded, "legacy-password")
-        XCTAssertEqual(KeychainStore.lastProtection, .legacyMigrated)
+        // В симуляторе ACL создать нельзя: перенос данных есть, но защита
+        // не подтверждена и не должна называться «защищён».
+        XCTAssertEqual(KeychainStore.testProtectionState(service: service), .noUserPresence)
+        XCTAssertEqual(KeychainStore.lastProtection, .simulator)
         // Перенос подтверждён чтением — старая запись удалена, новая на месте.
         XCTAssertTrue(KeychainStore.testHasProtectedRecord(service: service))
         XCTAssertFalse(KeychainStore.testHasLegacyRecord(service: service))
@@ -89,7 +95,22 @@ final class KeychainStoreTests: XCTestCase {
 
         let loaded = try KeychainStore.loadPassword(service: service)
         XCTAssertEqual(loaded, protectedPassword)
-        XCTAssertEqual(KeychainStore.lastProtection, .protected)
+        // Симулятор без ACL: не выдаём запись за защищённую только по имени.
+        XCTAssertEqual(KeychainStore.lastProtection, .legacyNoAuth)
+    }
+
+    func testUnprotectedV2IsNotReportedAsProtected() throws {
+        try KeychainStore.testSaveUnprotectedProtectedRecord("plain-password", service: service)
+        KeychainStore.testSetProtectionAvailable(true)
+
+        let loaded = try KeychainStore.loadPassword(service: service)
+        XCTAssertEqual(loaded, "plain-password")
+        XCTAssertEqual(KeychainStore.testProtectionState(service: service), .noUserPresence)
+        XCTAssertEqual(KeychainStore.lastProtection, .simulator)
+    }
+
+    func testMissingProtectionState() {
+        XCTAssertEqual(KeychainStore.testProtectionState(service: service), .missing)
     }
 
     // MARK: Ошибки

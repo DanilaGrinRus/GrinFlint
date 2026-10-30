@@ -28,9 +28,23 @@ enum KeychainStore {
         case protected = "Keychain: пароль защищён Face ID / кодом устройства"
         case legacyMigrated = "Keychain: пароль перенесён под защиту Face ID"
         case legacyNoAuth = "Keychain: код-пароль не задан — защита присутствием недоступна"
+        case unprotected = "Keychain: запись есть, но защита Face ID/кодом не подтверждена"
         case migrationPostponed = "Keychain: перенос под защиту отложен — подтвердите вход"
         case simulator = "Keychain: симулятор — защита присутствием недоступна"
         case unavailable = "Keychain: пароль не найден"
+    }
+
+    /// Фактическая защита записи, полученная из атрибутов Keychain,
+    /// а не из имени account: имя `wallet-password-v2` само по себе ничего
+    /// не доказывает.
+    enum ProtectionState: Equatable {
+        /// Элемент действительно требует присутствие пользователя (ACL).
+        case userPresence
+        /// Элемент существует, но ACL с присутствием нет.
+        case noUserPresence
+        /// Атрибуты недоступны/не распознаны — защиту не подтверждаем.
+        case unknown
+        case missing
     }
 
     private(set) static var lastProtection: Protection = .unavailable
@@ -88,7 +102,7 @@ enum KeychainStore {
         let password = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
             .base64EncodedString()
         try saveProtected(password, service: service)
-        lastProtection = protectionAvailable ? .protected : .legacyNoAuth
+        lastProtection = protectionResult(account: protectedAccount, service: service)
         return password
     }
 
@@ -97,21 +111,29 @@ enum KeychainStore {
         let protected = try read(account: protectedAccount, service: service)
         let legacy = try read(account: legacyAccount, service: service)
 
+        if let protected {
+            // Имя записи не является доказательством защиты: проверяем ACL.
+            switch protectionState(account: protectedAccount, service: service) {
+            case .userPresence:
+                lastProtection = .protected
+            case .noUserPresence, .unknown, .missing:
+                lastProtection = unprotectedProtection()
+            }
+            return protected
+        }
+
         switch plan(
-            hasProtected: protected != nil,
+            hasProtected: false,
             hasLegacy: legacy != nil,
             canProtect: protectionAvailable
         ) {
-        case .useProtected:
-            lastProtection = .protected
-            return protected
         case .migrate:
             guard let legacy else { return nil }
             return try migrateLegacy(legacy, service: service)
         case .keepLegacy:
-            lastProtection = .legacyNoAuth
+            lastProtection = unprotectedProtection()
             return legacy
-        case .createNew:
+        case .createNew, .useProtected:
             lastProtection = .unavailable
             return nil
         }
@@ -129,8 +151,10 @@ enum KeychainStore {
                 lastProtection = .migrationPostponed
                 return legacy
             }
+            let state = protectionState(account: protectedAccount, service: service)
             try? delete(account: legacyAccount, service: service)
-            lastProtection = .legacyMigrated
+            // Перенос данных состоялся, но защита подтверждается только ACL.
+            lastProtection = state == .userPresence ? .legacyMigrated : unprotectedProtection()
             return legacy
         } catch let error as KeychainError where error.status == errSecUserCanceled {
             // Пользователь отменил подтверждение: не трогаем старую запись,
@@ -139,6 +163,82 @@ enum KeychainStore {
             lastProtection = .migrationPostponed
             return legacy
         }
+    }
+
+    /// Диагностика для записи, которая не подтвердила ACL.
+    private static func unprotectedProtection() -> Protection {
+        guard protectionAvailable else { return .legacyNoAuth }
+        #if targetEnvironment(simulator)
+        return .simulator
+        #else
+        return .unprotected
+        #endif
+    }
+
+    private static func protectionResult(account: String, service: String) -> Protection {
+        switch protectionState(account: account, service: service) {
+        case .userPresence:
+            return .protected
+        case .noUserPresence, .unknown:
+            return unprotectedProtection()
+        case .missing:
+            return .unavailable
+        }
+    }
+
+    /// Проверяет фактическую защиту элемента по его атрибутам: наличие
+    /// `SecAccessControl` с userPresence/биометрией/кодом. Никогда не
+    /// выводит защиту из имени account.
+    static func protectionState(account: String, service: String) -> ProtectionState {
+        var query = baseQuery(account: account, service: service)
+        query[kSecReturnAttributes as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        if let context = BiometricAuth.authenticatedContext {
+            query[kSecUseAuthenticationContext as String] = context
+        }
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        switch status {
+        case errSecItemNotFound:
+            return .missing
+        case errSecSuccess:
+            guard let attributes = item as? [String: Any] else { return .unknown }
+            if let access = attributes[kSecAttrAccessControl as String] as? SecAccessControl,
+               hasUserPresence(access) {
+                return .userPresence
+            }
+            return .noUserPresence
+        case errSecInteractionNotAllowed:
+            // Элемент требует аутентификации, значит ACL с присутствием есть.
+            return .userPresence
+        default:
+            return .unknown
+        }
+    }
+
+    private static func hasUserPresence(_ access: SecAccessControl) -> Bool {
+        guard let constraints = SecAccessControlGetConstraints(access) as? [String: Any] else {
+            return false
+        }
+        return constraintsContainPresence(constraints)
+    }
+
+    private static func constraintsContainPresence(_ value: Any) -> Bool {
+        if let dictionary = value as? [String: Any] {
+            for (key, nested) in dictionary {
+                let lowered = key.lowercased()
+                if lowered.contains("userpresence")
+                    || lowered.contains("biometry")
+                    || lowered.contains("devicepasscode") {
+                    return true
+                }
+                if constraintsContainPresence(nested) { return true }
+            }
+        } else if let array = value as? [Any] {
+            return array.contains(where: constraintsContainPresence)
+        }
+        return false
     }
 
     /// Доступна ли защита присутствием пользователя (биометрия или код).
@@ -265,6 +365,22 @@ enum KeychainStore {
 
     static func testSaveLegacy(_ password: String, service: String) throws {
         try saveLegacy(password, service: service)
+    }
+
+    /// Элемент с именем «защищённой» записи, но без ACL — проверка, что
+    /// защита определяется по атрибутам, а не по имени.
+    static func testSaveUnprotectedProtectedRecord(_ password: String, service: String) throws {
+        var query = baseQuery(account: protectedAccount, service: service)
+        query[kSecValueData as String] = Data(password.utf8)
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeychainError(operation: "Сохранение тестовой записи", status: status)
+        }
+    }
+
+    static func testProtectionState(service: String) -> ProtectionState {
+        protectionState(account: protectedAccount, service: service)
     }
 
     static func testDeleteAll(service: String) {
