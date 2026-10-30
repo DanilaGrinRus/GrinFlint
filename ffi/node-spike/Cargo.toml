@@ -1,0 +1,20 @@
+[package]
+name = "grin-node-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Спайк: собираются ли node-библиотеки Grin под iOS (не часть приложения)"
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+grin_servers = "=5.5.2"
+grin_config = "=5.5.2"
+grin_core = "=5.5.2"
+grin_util = "=5.5.2"
+tokio = { version = "1", features = ["sync"] }
+
+# Отдельный workspace: iOS-репозиторий не должен смешиваться с desktop workspace.
+[workspace]

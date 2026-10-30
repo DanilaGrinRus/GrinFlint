@@ -1,0 +1,171 @@
+name: Node Spike
+
+# Спайк встроенной ноды Grin:
+#   1) собирается ли node-библиотека под iOS-симулятор (staticlib);
+#   2) сколько времени/RSS/диска занимает первичный синк из снапшота цепи и
+#      последующая «подкачка» после рестарта.
+# Только вручную; не влияет на обычный CI приложения.
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  ios-check:
+    name: Сборка node-библиотеки под iOS-симулятор
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain + target iOS-sim
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim,aarch64-apple-ios
+
+      - name: Кеш cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ffi/node-spike
+
+      - name: cargo check (node-крейты) под iOS-симулятор
+        working-directory: ffi/node-spike
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        run: |
+          cargo check --target aarch64-apple-ios-sim 2>&1 | tail -120
+          exit ${PIPESTATUS[0]}
+
+      - name: staticlib под iOS-симулятор
+        working-directory: ffi/node-spike
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        run: |
+          cargo build --release --target aarch64-apple-ios-sim 2>&1 | tail -40
+          ls -lh target/aarch64-apple-ios-sim/release/libgrin_node_spike.a
+          du -h target/aarch64-apple-ios-sim/release/libgrin_node_spike.a
+
+  host-measure:
+    name: Синк ноды на macOS: время, RSS, диск
+    runs-on: macos-15
+    timeout-minutes: 70
+    steps:
+      - name: Скачать floonet-ноду (macOS arm64)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v5.5.2 --repo mimblewimble/grin \
+            --pattern 'grin-v5.5.2-macos-arm64.tar.gz'
+          tar xzf grin-v5.5.2-macos-arm64.tar.gz
+          GRIN_BIN="$(find . -maxdepth 2 -name grin -type f | head -1)"
+          chmod +x "$GRIN_BIN"
+          echo "GRIN_BIN=$GRIN_BIN" >> "$GITHUB_ENV"
+
+      - name: Снапшот цепи floonet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download floonet-chain-2026-10-28 --repo "$GITHUB_REPOSITORY" \
+            -p 'floonet-chain-part-*'
+          mkdir -p "$HOME/.grin/test"
+          cat floonet-chain-part-* | tar -xJ -C "$HOME/.grin/test"
+          rm -f floonet-chain-part-*
+          # Конфиг и секреты со снапшота могли остаться от Linux-раннера:
+          # нода должна сгенерировать их заново с путями macOS.
+          rm -f "$HOME/.grin/test/grin-server.toml" \
+                "$HOME/.grin/test/.api_secret" \
+                "$HOME/.grin/test/.foreign_api_secret"
+          du -sh "$HOME/.grin/test"
+          df -h "$HOME" | tail -1
+
+      - name: Первый запуск (создать конфиг) и остановка
+        run: |
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-boot.log 2>&1 &
+          for i in $(seq 1 60); do
+            sleep 2
+            [ -f "$HOME/.grin/test/grin-server.toml" ] && break
+          done
+          pkill -9 -f "$GRIN_BIN" || true
+          sleep 2
+          test -f "$HOME/.grin/test/grin-server.toml" || { echo "нет конфига"; cat grin-boot.log; exit 1; }
+          grep -E 'db_root|api_http_addr|chain_type|archive_mode|^port' "$HOME/.grin/test/grin-server.toml" || true
+
+      - name: Первичный синк: время, RSS, диск
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          DATA="$HOME/.grin/test"
+          SECRET="$(cat "$DATA/.api_secret")"
+          START=$(date +%s)
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-sync.log 2>&1 &
+          PID=$!
+          MAX_KB=0
+          SYNCED=0
+          for i in $(seq 1 160); do
+            sleep 10
+            if ! kill -0 "$PID" 2>/dev/null; then
+              echo "нода завершилась"; tail -60 grin-sync.log; exit 1
+            fi
+            RSS=$(ps -o rss= -p "$PID" | tr -d ' ')
+            [ "${RSS:-0}" -gt "$MAX_KB" ] && MAX_KB=$RSS
+            RESP=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:13413/v2/owner \
+              -H 'Content-Type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' || true)
+            S=$(printf '%s' "$RESP" | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except Exception:
+    print("")
+    raise SystemExit(0)
+print((data.get("result") or {}).get("Ok", {}).get("sync_status", ""))
+' 2>/dev/null || true)
+            echo "poll $i: status=${S:-?} rss_kb=$RSS"
+            if [ "$S" = "no_sync" ]; then SYNCED=1; break; fi
+          done
+          ELAPSED=$(( $(date +%s) - START ))
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          echo "sync_status=$([ "$SYNCED" = 1 ] && echo no_sync || echo timeout)"
+          echo "sync_seconds=$ELAPSED"
+          echo "max_rss_mb=$((MAX_KB / 1024))"
+          du -sh "$DATA"
+          ls -lh "$GRIN_BIN"
+
+      - name: Подкачка после рестарта
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          DATA="$HOME/.grin/test"
+          SECRET="$(cat "$DATA/.api_secret")"
+          START=$(date +%s)
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-restart.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 30); do
+            sleep 2
+            RESP=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:13413/v2/owner \
+              -H 'Content-Type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' || true)
+            S=$(printf '%s' "$RESP" | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except Exception:
+    print("")
+    raise SystemExit(0)
+print((data.get("result") or {}).get("Ok", {}).get("sync_status", ""))
+' 2>/dev/null || true)
+            echo "restart poll $i: ${S:-?}"
+            if [ "$S" = "no_sync" ]; then
+              echo "catchup_seconds=$(( $(date +%s) - START ))"
+              break
+            fi
+          done
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          tail -5 grin-restart.log || true
