@@ -1,0 +1,162 @@
+name: Floonet UI E2E
+
+# Живой UI-перевод с настоящим FFI на симуляторе macOS:
+# приложение восстанавливает funded-кошелёк из seed, создаёт перевод через
+# экран отправки, второй кошелёк в тестовом процессе принимает Slatepack,
+# ответ вставляется в UI, финализация и подтверждение проверяются.
+#
+# Только вручную: поднимает собственную floonet-ноду из снапшота цепи
+# (релиз floonet-chain-*), тратит тестовые tGRIN из TEST_WALLET_SEED и идёт
+# 20–60 минут. Обычный iOS Build этот тест компилирует, но пропускает.
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: never
+  CHAIN_SNAPSHOT: floonet-chain-2026-10-28
+
+jobs:
+  ui-e2e:
+    name: UI-перевод с настоящим FFI (симулятор)
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Клонирование
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain + таргеты iOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Кеш cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ffi/grin-wallet-ffi
+
+      - name: Патчи зависимостей для iOS
+        working-directory: ffi/grin-wallet-ffi
+        run: |
+          mkdir -p .patches
+          curl -sL https://static.crates.io/crates/sysinfo/sysinfo-0.38.4.crate | tar xz -C .patches
+          curl -sL https://static.crates.io/crates/grin_wallet_impls/grin_wallet_impls-5.5.1.crate | tar xz -C .patches
+          python3 ../patches/patch_ios_deps.py .patches
+          printf '\n[patch.crates-io]\nsysinfo = { path = ".patches/sysinfo-0.38.4" }\ngrin_wallet_impls = { path = ".patches/grin_wallet_impls-5.5.1" }\n' >> Cargo.toml
+
+      - name: Сборка FFI для симулятора
+        working-directory: ffi/grin-wallet-ffi
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        run: |
+          cargo build --release --target aarch64-apple-ios-sim
+          cargo build --release --target x86_64-apple-ios
+
+      - name: Упаковка XCFramework (симулятор)
+        working-directory: ffi
+        run: |
+          mkdir -p ios-sim
+          lipo -create \
+            grin-wallet-ffi/target/aarch64-apple-ios-sim/release/libgrin_wallet_ffi.a \
+            grin-wallet-ffi/target/x86_64-apple-ios/release/libgrin_wallet_ffi.a \
+            -output ios-sim/libgrin_wallet_ffi.a
+          xcodebuild -create-xcframework \
+            -library ios-sim/libgrin_wallet_ffi.a -headers include \
+            -output GrinWalletFFI.xcframework
+
+      - name: Скачать floonet-ноду (macOS arm64)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v5.5.2 --repo mimblewimble/grin \
+            --pattern 'grin-v5.5.2-macos-arm64.tar.gz'
+          tar xzf grin-v5.5.2-macos-arm64.tar.gz
+          GRIN_BIN="$(find . -maxdepth 2 -name grin -type f | head -1)"
+          chmod +x "$GRIN_BIN"
+          echo "GRIN_BIN=$GRIN_BIN" >> "$GITHUB_ENV"
+
+      - name: Снапшот цепи floonet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$CHAIN_SNAPSHOT" --repo "$GITHUB_REPOSITORY" \
+            -p 'floonet-chain-part-*'
+          mkdir -p "$HOME/.grin/test"
+          cat floonet-chain-part-* | tar -xJ -C "$HOME/.grin/test"
+          du -sh "$HOME/.grin/test"
+
+      - name: Запуск ноды без auth на foreign API
+        run: |
+          # Первый запуск создаёт конфиг/секреты, если их нет в снапшоте.
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node-boot.log 2>&1 &
+          for i in $(seq 1 30); do sleep 2; [ -f "$HOME/.grin/test/grin-server.toml" ] && break; done
+          pkill -9 -f "$GRIN_BIN" || true
+          sleep 2
+          TOML="$HOME/.grin/test/grin-server.toml"
+          test -f "$TOML" || { echo "нет $TOML"; exit 1; }
+          # Приложение не хранит секрет ноды: foreign API должен быть открыт.
+          sed -i '' -E 's|^foreign_api_secret_path = .*|foreign_api_secret_path = ""|' "$TOML"
+          rm -f "$HOME/.grin/test/.foreign_api_secret"
+          grep -E 'foreign_api_secret_path|api_secret_path' "$TOML" || true
+          nohup "$GRIN_BIN" --testnet --no-tui server run > grin-node.log 2>&1 &
+
+      - name: Ожидание синхронизации ноды
+        timeout-minutes: 30
+        run: |
+          SECRET_FILE="$HOME/.grin/test/.api_secret"
+          test -f "$SECRET_FILE" || { echo "нет $SECRET_FILE"; exit 1; }
+          SECRET="$(cat "$SECRET_FILE")"
+          for i in $(seq 1 90); do
+            sleep 10
+            S=$(curl -s -u "grin:$SECRET" -X POST http://127.0.0.1:13413/v2/owner \
+              -H 'Content-Type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("result") or {}).get("Ok", {}).get("sync_status", ""))')
+            echo "poll $i: $S"
+            [ "$S" = "no_sync" ] && exit 0
+          done
+          echo "нода не синхронизировалась"; tail -40 grin-node.log; exit 1
+
+      - name: UI-перевод с настоящим FFI
+        env:
+          TEST_RUNNER_GRIN_E2E_SEED: ${{ secrets.TEST_WALLET_SEED }}
+          TEST_RUNNER_GRIN_E2E_NODE_URL: http://127.0.0.1:13413
+        run: |
+          set -euo pipefail
+          TIP=$(curl -s -X POST http://127.0.0.1:13413/v2/foreign \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"get_tip"}' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["Ok"]["height"])')
+          echo "tip=$TIP"
+          export TEST_RUNNER_GRIN_E2E_RESTORE_HEIGHT=$((TIP - 20000))
+          echo "restore_height=$TEST_RUNNER_GRIN_E2E_RESTORE_HEIGHT"
+          XCF="$PWD/ffi/GrinWalletFFI.xcframework"
+          SIM_LIB=$(find "$XCF" -name 'libgrin_wallet_ffi.a' | head -1)
+          HEADERS=$(find "$XCF" -type d -name Headers | head -1)
+          test -n "$SIM_LIB" && test -n "$HEADERS"
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone' | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          test -n "$DEVICE" || { echo "симулятор не найден"; exit 1; }
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl uninstall "$DEVICE" com.dan.grinflint || true
+          xcodebuild test \
+            -project GrinFlintApp/GrinFlint.xcodeproj \
+            -scheme GrinFlint \
+            -derivedDataPath "$PWD/build" \
+            -destination "platform=iOS Simulator,id=$DEVICE" \
+            -only-testing:GrinFlintUITests/RealFFITransferUITests \
+            -resultBundlePath "$PWD/ui-e2e.xcresult" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) GRINFFI' \
+            SWIFT_OBJC_BRIDGING_HEADER="$PWD/GrinFlintApp/GrinFlint/Services/FFI/GrinWalletFFI-Bridging-Header.h" \
+            HEADER_SEARCH_PATHS="$HEADERS" \
+            OTHER_LDFLAGS="-L$(dirname "$SIM_LIB") -lgrin_wallet_ffi -framework Security -framework CoreFoundation -liconv" \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Результат UI-теста (xcresult)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-e2e-results
+          path: ui-e2e.xcresult
+          if-no-files-found: warn
+          retention-days: 14
