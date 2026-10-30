@@ -101,7 +101,7 @@ enum SimSmoke {
             chain: WalletFactory.network == .mainnet ? .mainnet : .floonet,
             password: password
         )
-        try await restored.restore(mnemonic: mnemonic)
+        try await restored.restore(mnemonic: mnemonic, restoreHeight: nil)
         try await restored.open()
         let restoredAddress = await restored.slatepackAddress
         report.set("restore_address_matches", restoredAddress == address)

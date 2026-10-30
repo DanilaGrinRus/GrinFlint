@@ -24,8 +24,9 @@ protocol WalletService: AnyObject {
     /// Создать новый кошелёк и вернуть seed-фразу (24 слова).
     func createWallet(mnemonicLength: Int) async throws -> String
 
-    /// Восстановить кошелёк из seed-фразы.
-    func restore(mnemonic: String) async throws
+    /// Восстановить кошелёк из seed-фразы. `restoreHeight` — высота блока,
+    /// с которой начинать скан (nil/0 — с генезиса).
+    func restore(mnemonic: String, restoreHeight: UInt64?) async throws
 
     /// Обновить состояние с ноды. В демо: «добывается блок» и
     /// неподтверждённые транзакции становятся подтверждёнными.
@@ -114,7 +115,7 @@ final class UnavailableWalletService: WalletService {
 
     func createWallet(mnemonicLength: Int) async throws -> String { try bail() }
 
-    func restore(mnemonic: String) async throws { try bail() }
+    func restore(mnemonic: String, restoreHeight: UInt64?) async throws { try bail() }
 
     func refresh() async throws { try bail() }
 
@@ -210,7 +211,7 @@ final class MockWalletService: WalletService {
         }.joined(separator: " ")
     }
 
-    func restore(mnemonic: String) async throws {
+    func restore(mnemonic: String, restoreHeight: UInt64?) async throws {
         let words = mnemonic.split(whereSeparator: { $0 == " " || $0 == "\n" })
         guard words.count == 12 || words.count == 24 else {
             throw WalletError.invalidMnemonic

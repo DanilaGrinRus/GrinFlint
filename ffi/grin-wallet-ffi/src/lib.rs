@@ -13,7 +13,7 @@ use grin_wallet_api::{Foreign, Owner};
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{
-    InitTxArgs, InitTxSendArgs, Slate, SlateState, SlatepackAddress, WalletInst,
+    InitTxArgs, InitTxSendArgs, NodeClient, Slate, SlateState, SlatepackAddress, WalletInst,
 };
 use grin_core::core::hash::Hashed;
 use grin_core::genesis;
@@ -34,6 +34,10 @@ pub struct GrinWallet {
     owner: Owner<Lc, HTTPNodeClient, ExtKeychain>,
     mask: Option<SecretKey>,
     config_path: PathBuf,
+    /// Параметры ноды храним, чтобы проверять restore_height до создания
+    /// seed-файла (кошелёк ещё не открыт, owner-клиент недоступен).
+    node_url: String,
+    api_secret: Option<String>,
     /// Сеть этого кошелька. grin_core хранит chain type в thread-local +
     /// глобально; FFI зовут с разных потоков (Swift actor), поэтому перед
     /// каждым вызовом выставляем thread-local заново.
@@ -55,6 +59,22 @@ fn repost_dir(w: &GrinWallet) -> std::path::PathBuf {
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."))
         .join("repost")
+}
+
+/// Высота ноды без открытого кошелька: нужна, чтобы проверить restore_height
+/// до создания seed-файла (иначе после ошибки остался бы кошелёк, который
+/// пришлось бы сканировать с генезиса).
+fn probe_node_height(w: &GrinWallet) -> Result<u64, String> {
+    let client = HTTPNodeClient::new(
+        &w.node_url,
+        w.api_secret.clone(),
+        std::time::Duration::from_secs(10),
+    )
+    .map_err(|e| format!("node client: {e}"))?;
+    let (height, _) = client
+        .get_chain_tip()
+        .map_err(|e| format!("get_chain_tip: {e}"))?;
+    Ok(height)
 }
 
 /// Сохраняет уже подписанную транзакцию ДО публикации: при сбое сети её
@@ -209,7 +229,7 @@ pub extern "C" fn grin_wallet_create(
 
         let node_client = HTTPNodeClient::new(
             &config.check_node_api_http_addr,
-            api_secret,
+            api_secret.clone(),
             std::time::Duration::from_secs(30),
         )
         .map_err(|e| format!("node client: {e}"))?;
@@ -231,7 +251,14 @@ pub extern "C" fn grin_wallet_create(
                 .map_err(|e| format!("config write {}: {e}", config_path.display()))?;
         }
         let owner = Owner::new(std::sync::Arc::new(grin_util::Mutex::new(wallet)), None, config_path.clone());
-        Ok(GrinWallet { owner, mask: None, config_path, chain_type })
+        Ok(GrinWallet {
+            owner,
+            mask: None,
+            config_path,
+            node_url: config.check_node_api_http_addr.clone(),
+            api_secret,
+            chain_type,
+        })
     });
     match result {
         Ok(Ok(w)) => Box::into_raw(Box::new(w)),
@@ -287,12 +314,28 @@ pub extern "C" fn grin_wallet_open(handle: *mut GrinWallet, password: *const c_c
 
 /// Создать новый кошелек; возвращает {"mnemonic": "..."}.
 /// mnemonic = NULL — создать новый seed, иначе восстановить из фразы.
+/// Полный скан с генезиса: обертка над `grin_wallet_create_seed_at`.
 #[no_mangle]
 pub extern "C" fn grin_wallet_create_seed(
     handle: *mut GrinWallet,
     password: *const c_char,
     mnemonic_length: u32,
     mnemonic: *const c_char,
+) -> *mut c_char {
+    grin_wallet_create_seed_at(handle, password, mnemonic_length, mnemonic, 0)
+}
+
+/// Создать кошелек/восстановить из seed, начиная скан с `restore_height`
+/// (0 — с генезиса). Высота проверяется по ноде до создания кошелька, скан
+/// выполняется сразу: последующий refresh продолжит с последнего блока,
+/// а не с нуля.
+#[no_mangle]
+pub extern "C" fn grin_wallet_create_seed_at(
+    handle: *mut GrinWallet,
+    password: *const c_char,
+    mnemonic_length: u32,
+    mnemonic: *const c_char,
+    restore_height: u64,
 ) -> *mut c_char {
     let result = guarded(|| -> Result<serde_json::Value, String> {
         let w = wallet_mut(handle)?;
@@ -312,6 +355,22 @@ pub extern "C" fn grin_wallet_create_seed(
                 "bad mnemonic_length {other}: use word count 12/15/18/21/24"
             )),
         };
+        let restoring = mnemonic.is_some();
+        if restore_height > 0 && !restoring {
+            return Err("restore_height задаётся только при восстановлении из seed".into());
+        }
+        if restoring && restore_height > 0 {
+            // Проверяем ноду и границу высоты ДО создания кошелька: иначе при
+            // опечатке остался бы кошелёк, который пришлось бы сканировать
+            // с генезиса.
+            let tip = probe_node_height(w)
+                .map_err(|e| format!("нода недоступна для restore_height: {e}"))?;
+            if restore_height > tip {
+                return Err(format!(
+                    "restore_height {restore_height} выше высоты ноды {tip}"
+                ));
+            }
+        }
         w.owner
             .create_wallet(None, mnemonic, entropy_bytes, password.clone())
             .map_err(|e| format!("create_wallet: {e}"))?;
@@ -320,6 +379,11 @@ pub extern "C" fn grin_wallet_create_seed(
             .open_wallet(None, password.clone(), false)
             .map_err(|e| format!("open_wallet: {e}"))?;
         w.mask = mask;
+        if restoring && restore_height > 0 {
+            w.owner
+                .scan(w.mask.as_ref(), Some(restore_height), false)
+                .map_err(|e| format!("scan с высоты {restore_height}: {e}"))?;
+        }
         let phrase = w
             .owner
             .get_mnemonic(None, password)
@@ -333,7 +397,7 @@ pub extern "C" fn grin_wallet_create_seed(
             fail()
         }
         Err(_) => {
-            set_error(panic_error("grin_wallet_create_seed"));
+            set_error(panic_error("grin_wallet_create_seed_at"));
             fail()
         }
     }

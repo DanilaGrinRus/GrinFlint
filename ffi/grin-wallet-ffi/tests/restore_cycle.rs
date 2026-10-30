@@ -5,7 +5,8 @@
 //!
 //! Env: GRINFFI_CYCLE_SEED (фраза), GRINFFI_CYCLE_PASS,
 //! GRIN_E2E_NODE_URL (default 127.0.0.1:13413), GRIN_E2E_API_SECRET,
-//! GRINFFI_CYCLE_EXPECT_ADDRESS (опционально), GRINFFI_CYCLE_AMOUNT_NGRIN.
+//! GRINFFI_CYCLE_EXPECT_ADDRESS (опционально), GRINFFI_CYCLE_AMOUNT_NGRIN,
+//! GRINFFI_CYCLE_RESTORE_HEIGHT (опционально; 0 — скан с генезиса).
 //! Без обязательных переменных — ошибка конфигурации, не PASS.
 
 use grin_wallet_ffi::*;
@@ -102,6 +103,11 @@ fn restore_clean_dir_then_confirmed_transfer() {
         .and_then(|s| s.parse().ok())
         .unwrap_or(1_000_000);
     let expect_address = std::env::var("GRINFFI_CYCLE_EXPECT_ADDRESS").ok();
+    // 0 — полный скан с генезиса; иначе скан начинается с этой высоты.
+    let restore_height: u64 = std::env::var("GRINFFI_CYCLE_RESTORE_HEIGHT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
 
     let dir_a = unique_dir("a");
     let dir_b = unique_dir("b");
@@ -117,11 +123,13 @@ fn restore_clean_dir_then_confirmed_transfer() {
         assert!(!h_a.is_null(), "create: {}", last_error());
 
         // JSON с mnemonic не печатаем и не сохраняем.
-        let restored = take_string(grin_wallet_create_seed(
+        eprintln!("restore_height={restore_height}");
+        let restored = take_string(grin_wallet_create_seed_at(
             h_a,
             cs(&pass).as_ptr(),
             24,
             cs(&seed).as_ptr(),
+            restore_height,
         ));
         assert!(restored.is_some(), "restore: {}", last_error());
 

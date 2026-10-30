@@ -59,14 +59,16 @@ actor GrinWalletFFIService: WalletService {
         return result.mnemonic
     }
 
-    /// Восстановить из seed-фразы.
-    func restore(mnemonic: String) async throws {
+    /// Восстановить из seed-фразы. При заданной высоте скан начинается с неё,
+    /// иначе — с генезиса (медленно на большой сети).
+    func restore(mnemonic: String, restoreHeight: UInt64?) async throws {
         let words = mnemonic.split(whereSeparator: { $0 == " " || $0 == "\n" })
         guard words.count == 12 || words.count == 24 else {
             throw WalletError.invalidMnemonic
         }
+        let height = restoreHeight ?? 0
         let _: GrinMnemonicResult = try GrinFFI.call({ h in
-            grin_wallet_create_seed(h.raw, password, UInt32(words.count), mnemonic)
+            grin_wallet_create_seed_at(h.raw, password, UInt32(words.count), mnemonic, height)
         }, handle: handle, as: GrinMnemonicResult.self)
     }
 

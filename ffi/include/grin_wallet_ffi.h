@@ -34,11 +34,21 @@ void grin_wallet_destroy(GrinWallet *handle);
 char *grin_wallet_open(GrinWallet *handle, const char *password);
 
 /* Создать кошелек (mnemonic=NULL — новый seed) или восстановить.
- * Возвращает {"mnemonic": "24 слова..."}. */
+ * Возвращает {"mnemonic": "24 слова..."}. Скан с генезиса. */
 char *grin_wallet_create_seed(GrinWallet *handle,
                               const char *password,
                               uint32_t mnemonic_length,
                               const char *mnemonic);
+
+/* То же, но восстановление из seed начинается с высоты restore_height
+ * (0 — с генезиса). Высота проверяется по ноде и не может быть выше текущей;
+ * скан выполняется сразу, чтобы последующий refresh не шёл с нуля.
+ * Возвращает {"mnemonic": "..."}; NULL + grin_last_error() — ошибка. */
+char *grin_wallet_create_seed_at(GrinWallet *handle,
+                                 const char *password,
+                                 uint32_t mnemonic_length,
+                                 const char *mnemonic,
+                                 uint64_t restore_height);
 
 /* Баланс {"spendable","awaiting","locked","total"} в наногринах.
  * refresh=1 — сначала опросить ноду. */

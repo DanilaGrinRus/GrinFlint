@@ -563,3 +563,34 @@ fn errors_do_not_echo_secrets() {
         grin_wallet_destroy(h);
     }
 }
+
+/// restore_height имеет смысл только при восстановлении из seed: для нового
+/// кошелька (mnemonic = NULL) это ошибка конфигурации, а не молчаливое
+/// создание кошелька с полным сканом.
+#[test]
+fn restore_height_requires_mnemonic() {
+    unsafe {
+        let dir = unique_dir("height-no-seed");
+        let h = grin_wallet_create(
+            cs(&dir).as_ptr(),
+            cs("http://127.0.0.1:1").as_ptr(),
+            cs("floonet").as_ptr(),
+            ptr::null(),
+        );
+        assert!(!h.is_null(), "create: {}", last_error());
+
+        assert!(
+            grin_wallet_create_seed_at(h, cs("pass").as_ptr(), 24, ptr::null(), 5).is_null(),
+            "высота без seed-фразы должна отклоняться"
+        );
+        let err = last_error();
+        assert!(
+            err.contains("restore_height"),
+            "ожидалась понятная ошибка: {err}"
+        );
+        assert!(!err.to_lowercase().contains("panic"), "без паники: {err}");
+
+        grin_wallet_destroy(h);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

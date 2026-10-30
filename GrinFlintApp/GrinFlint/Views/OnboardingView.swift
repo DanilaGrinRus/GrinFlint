@@ -134,8 +134,26 @@ struct RestoreWalletView: View {
     @Bindable var appState: AppState
     @Binding var restoreText: String
 
+    /// Высота блока, с которой начинать скан (пусто — с генезиса).
+    @State private var restoreHeightText = ""
+
     private var wordCount: Int {
         restoreText.split(whereSeparator: { $0 == " " || $0 == "\n" }).count
+    }
+
+    private var restoreHeight: UInt64? {
+        let trimmed = restoreHeightText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        guard let height = UInt64(trimmed), height > 0 else { return nil }
+        return height
+    }
+
+    private var restoreHeightInvalid: Bool {
+        !restoreHeightText.trimmingCharacters(in: .whitespaces).isEmpty && restoreHeight == nil
+    }
+
+    private var canRestore: Bool {
+        (wordCount == 12 || wordCount == 24) && !restoreHeightInvalid && !appState.isWorking
     }
 
     var body: some View {
@@ -164,8 +182,30 @@ struct RestoreWalletView: View {
                     }
                 }
 
+                GrinCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Высота восстановления (необязательно)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                        TextField("Например, 3100000", text: $restoreHeightText)
+                            .keyboardType(.numberPad)
+                            .font(Theme.mono(14))
+                            .foregroundStyle(Theme.textPrimary)
+                            .tint(Theme.accent)
+                            .accessibilityIdentifier("restore.height")
+                        Text("Укажите высоту блока, на котором создан кошелёк, — скан не пойдёт с самого начала. Пустое поле означает полный скан с генезиса.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textTertiary)
+                        if restoreHeightInvalid {
+                            Text("Высота — целое число больше нуля.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.warning)
+                        }
+                    }
+                }
+
                 Button {
-                    appState.restore(mnemonic: restoreText)
+                    appState.restore(mnemonic: restoreText, restoreHeight: restoreHeight)
                 } label: {
                     if appState.isWorking {
                         ProgressView().tint(.white)
@@ -174,8 +214,8 @@ struct RestoreWalletView: View {
                     }
                 }
                 .buttonStyle(GrinButtonStyle())
-                .disabled(appState.isWorking || (wordCount != 12 && wordCount != 24))
-                .opacity(wordCount == 12 || wordCount == 24 ? 1 : 0.5)
+                .disabled(!canRestore)
+                .opacity(canRestore ? 1 : 0.5)
 
                 if appState.isWorking, let stage = appState.restoreStage {
                     VStack(spacing: 8) {

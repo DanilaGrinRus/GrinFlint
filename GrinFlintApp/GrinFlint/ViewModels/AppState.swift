@@ -76,13 +76,16 @@ final class AppState {
         finishOnboarding()
     }
 
-    func restore(mnemonic: String) {
+    /// `restoreHeight` — необязательная высота блока, с которой начинать скан
+    /// (nil — с генезиса; полезно, когда известен возраст кошелька).
+    func restore(mnemonic: String, restoreHeight: UInt64? = nil) {
         isWorking = true
         onboardingError = nil
-        restoreStage = "Создаём кошелёк из seed-фразы…"
+        restoreStage = restoreHeight.map { "Создаём кошелёк и сканируем с высоты \($0)…" }
+            ?? "Создаём кошелёк из seed-фразы…"
         Task {
             do {
-                try await restoreWithProgress(mnemonic: mnemonic)
+                try await restoreWithProgress(mnemonic: mnemonic, restoreHeight: restoreHeight)
             } catch {
                 onboardingError = error.localizedDescription
                 restoreStage = nil
@@ -94,10 +97,10 @@ final class AppState {
     /// Восстановление по этапам: создание → открытие → скан выходов.
     /// Прерванное восстановление можно продолжить: если seed-файл уже создан,
     /// кошелёк просто открывается (повторная генерация не выполняется).
-    private func restoreWithProgress(mnemonic: String) async throws {
+    private func restoreWithProgress(mnemonic: String, restoreHeight: UInt64?) async throws {
         var alreadyOpened = false
         do {
-            try await service.restore(mnemonic: mnemonic)
+            try await service.restore(mnemonic: mnemonic, restoreHeight: restoreHeight)
         } catch {
             restoreStage = "Кошелёк уже создан — продолжаем открытие…"
             do {
