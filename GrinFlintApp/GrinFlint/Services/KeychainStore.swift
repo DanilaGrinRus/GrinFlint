@@ -186,16 +186,18 @@ enum KeychainStore {
         }
     }
 
-    /// Проверяет фактическую защиту элемента по его атрибутам: наличие
-    /// `SecAccessControl` с userPresence/биометрией/кодом. Никогда не
-    /// выводит защиту из имени account.
+    /// Проверяет фактическую защиту элемента: пытается прочитать данные с
+    /// запрещённым UI. Если Keychain требует присутствие пользователя, вернётся
+    /// `errSecInteractionNotAllowed`; если запись читается без подтверждения —
+    /// ACL с userPresence нет. Имя account при этом не учитывается.
     static func protectionState(account: String, service: String) -> ProtectionState {
         var query = baseQuery(account: account, service: service)
-        query[kSecReturnAttributes as String] = true
+        query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
-        if let context = BiometricAuth.authenticatedContext {
-            query[kSecUseAuthenticationContext as String] = context
-        }
+        // Свежий контекст без UI: не переиспользуем ранее подтверждённый.
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        query[kSecUseAuthenticationContext as String] = context
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
@@ -203,16 +205,9 @@ enum KeychainStore {
         case errSecItemNotFound:
             return .missing
         case errSecSuccess:
-            guard let attributes = item as? [String: Any] else { return .unknown }
-            // Наличие ACL-атрибута — единственный признак, который реально
-            // проверяется. Все записи приложения создаются с .userPresence;
-            // отсутствие ACL означает, что защита присутствием не применяется.
-            if attributes[kSecAttrAccessControl as String] != nil {
-                return .userPresence
-            }
+            // Прочиталось без подтверждения присутствия — ACL нет.
             return .noUserPresence
-        case errSecInteractionNotAllowed:
-            // Элемент требует аутентификации, значит ACL с присутствием есть.
+        case errSecInteractionNotAllowed, errSecAuthFailed:
             return .userPresence
         default:
             return .unknown
