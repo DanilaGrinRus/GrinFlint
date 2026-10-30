@@ -150,8 +150,14 @@ final class WalletViewModel {
             await syncFromService()
             // Незавершённых интерактивных транзакций больше нет.
             TxReminders.cancelAll()
-        } catch let error as WalletError {
-            errorMessage = error.localizedDescription
+        } catch {
+            // Журнал мог измениться даже при ошибке: FFI сохраняет стадию
+            // finalized и подписанный Slate, чтобы UI предложил повтор
+            // публикации без новой подписи.
+            await syncFromService()
+            if let walletError = error as? WalletError {
+                errorMessage = walletError.localizedDescription
+            }
             throw error
         }
     }
