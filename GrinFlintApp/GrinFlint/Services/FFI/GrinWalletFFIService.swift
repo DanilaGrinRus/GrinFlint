@@ -117,7 +117,8 @@ actor GrinWalletFFIService: WalletService {
             dataDir: directory.path,
             nodeURL: "http://127.0.0.1:1",
             chain: chain.rawValue
-        )        let _: GrinMnemonicResult = try GrinFFI.call({ h in
+        )
+        let _: GrinMnemonicResult = try GrinFFI.call({ h in
             grin_wallet_create_seed_at(h.raw, password, UInt32(words.count), mnemonic, 0)
         }, handle: temp, as: GrinMnemonicResult.self)
         let opened: GrinAddressResult = try GrinFFI.call({ h in
