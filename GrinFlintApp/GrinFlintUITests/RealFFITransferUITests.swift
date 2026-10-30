@@ -41,9 +41,24 @@ final class RealFFITransferUITests: XCTestCase {
         try pasteResponse(response)
 
         app.buttons["Завершить перевод"].tap()
+        let finished = app.staticTexts["Перевод завершён"]
+        let finishAlert = app.alerts["Не удалось завершить перевод"]
+        let deadline = Date().addingTimeInterval(240)
+        var alertText: String?
+        while Date() < deadline {
+            if finished.exists { break }
+            if finishAlert.exists {
+                alertText = finishAlert.staticTexts.allElementsBoundByIndex
+                    .map(\.label)
+                    .joined(separator: " | ")
+                break
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
         XCTAssertTrue(
-            app.staticTexts["Перевод завершён"].waitForExistence(timeout: 240),
-            "финализация через FFI не прошла"
+            finished.exists,
+            alertText.map { "финализация через FFI не прошла: \($0)" }
+                ?? "финализация через FFI не прошла"
         )
         XCTAssertTrue(
             try ctx.recipient.waitForSpendable(atLeast: 1_000_000, timeout: 600),
