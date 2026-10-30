@@ -204,8 +204,10 @@ enum KeychainStore {
             return .missing
         case errSecSuccess:
             guard let attributes = item as? [String: Any] else { return .unknown }
-            if let access = attributes[kSecAttrAccessControl as String] as? SecAccessControl,
-               hasUserPresence(access) {
+            // Наличие ACL-атрибута — единственный признак, который реально
+            // проверяется. Все записи приложения создаются с .userPresence;
+            // отсутствие ACL означает, что защита присутствием не применяется.
+            if attributes[kSecAttrAccessControl as String] != nil {
                 return .userPresence
             }
             return .noUserPresence
@@ -215,30 +217,6 @@ enum KeychainStore {
         default:
             return .unknown
         }
-    }
-
-    private static func hasUserPresence(_ access: SecAccessControl) -> Bool {
-        guard let constraints = SecAccessControlGetConstraints(access) as? [String: Any] else {
-            return false
-        }
-        return constraintsContainPresence(constraints)
-    }
-
-    private static func constraintsContainPresence(_ value: Any) -> Bool {
-        if let dictionary = value as? [String: Any] {
-            for (key, nested) in dictionary {
-                let lowered = key.lowercased()
-                if lowered.contains("userpresence")
-                    || lowered.contains("biometry")
-                    || lowered.contains("devicepasscode") {
-                    return true
-                }
-                if constraintsContainPresence(nested) { return true }
-            }
-        } else if let array = value as? [Any] {
-            return array.contains(where: constraintsContainPresence)
-        }
-        return false
     }
 
     /// Доступна ли защита присутствием пользователя (биометрия или код).
