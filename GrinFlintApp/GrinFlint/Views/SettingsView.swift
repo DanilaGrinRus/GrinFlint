@@ -13,6 +13,9 @@ struct SettingsView: View {
     @State private var isCheckingNode = false
     @State private var nodeCheckResult: String?
     @State private var nodeCheckError: String?
+    @State private var nodeAPISecret = ""
+    @State private var nodeSecretStatus: String?
+    @State private var nodeSecretError: String?
 
     /// Демо-сид-фраза (НЕ используйте реальные средства с ней).
     private let demoSeed = [
@@ -41,6 +44,7 @@ struct SettingsView: View {
                 if WalletFactory.network == .floonet, nodeURL == WalletFactory.mainnetNodeURL {
                     nodeURL = WalletFactory.floonetNodeURL
                 }
+                nodeAPISecret = (try? KeychainStore.loadNodeAPISecret()) ?? ""
             }
         }
     }
@@ -83,6 +87,47 @@ struct SettingsView: View {
                         .tint(Theme.accent)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
+
+                    if !viewModel.isDemoMode {
+                        SecureField("API-секрет ноды (если требуется)", text: $nodeAPISecret)
+                            .font(Theme.mono(14))
+                            .foregroundStyle(Theme.textPrimary)
+                            .tint(Theme.accent)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .accessibilityIdentifier("node.secret")
+
+                        HStack(spacing: 12) {
+                            Button {
+                                saveNodeSecret()
+                            } label: {
+                                Label("Сохранить секрет", systemImage: "key.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Theme.accent)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("node.secret.save")
+
+                            if nodeSecretStatus != nil {
+                                Text("сохранён")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.positive)
+                                    .accessibilityIdentifier("node.secret.ok")
+                            }
+                        }
+                        if let nodeSecretError {
+                            Text(nodeSecretError)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.warning)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("node.secret.error")
+                        }
+                        Text("Секрет хранится в Keychain и применится при следующем запуске. Без него закрытая нода вернёт 401.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     Label(viewModel.isDemoMode
                           ? "В демо-режиме подключение не используется"
                           : "floonet-нода; применится при следующем запуске", systemImage: "info.circle")
@@ -128,6 +173,17 @@ struct SettingsView: View {
         }
     }
 
+    private func saveNodeSecret() {
+        do {
+            try KeychainStore.saveNodeAPISecret(nodeAPISecret)
+            nodeSecretStatus = "сохранён"
+            nodeSecretError = nil
+        } catch {
+            nodeSecretError = error.localizedDescription
+            nodeSecretStatus = nil
+        }
+    }
+
     private func checkNode() async {
         isCheckingNode = true
         nodeCheckResult = nil
@@ -136,7 +192,8 @@ struct SettingsView: View {
         do {
             let result = try await NodeProbe.check(
                 urlString: nodeURL,
-                expected: WalletFactory.network
+                expected: WalletFactory.network,
+                apiSecret: nodeAPISecret
             )
             nodeCheckResult = "Нода доступна: сеть \(result.chain), genesis \(result.genesisPrefix)…"
         } catch {

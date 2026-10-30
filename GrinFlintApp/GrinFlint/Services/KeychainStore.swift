@@ -22,6 +22,9 @@ enum KeychainStore {
     static let legacyAccount = "wallet-password"
     /// Новая запись с userPresence.
     static let protectedAccount = "wallet-password-v2"
+    /// API-секрет ноды (Basic Auth). Не требует Face ID: нужен кошельку при
+    /// запуске, но хранится в Keychain, а не в UserDefaults/логах.
+    static let nodeSecretAccount = "node-api-secret"
 
     /// Диагностика последней операции (для экрана настроек/ошибок).
     enum Protection: String {
@@ -136,6 +139,40 @@ enum KeychainStore {
         case .createNew, .useProtected:
             lastProtection = .unavailable
             return nil
+        }
+    }
+
+    // MARK: - API-секрет ноды
+
+    /// Читает API-секрет ноды (nil — секрет не задан).
+    static func loadNodeAPISecret(service: String = defaultService) throws -> String? {
+        var query = baseQuery(account: nodeSecretAccount, service: service)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else {
+            throw KeychainError(operation: "Чтение API-секрета ноды", status: status)
+        }
+        guard let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Сохраняет API-секрет ноды. Пустая строка удаляет запись.
+    static func saveNodeAPISecret(_ secret: String?, service: String = defaultService) throws {
+        let trimmed = secret?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        try delete(account: nodeSecretAccount, service: service)
+        guard !trimmed.isEmpty else { return }
+        var query = baseQuery(account: nodeSecretAccount, service: service)
+        query[kSecValueData as String] = Data(trimmed.utf8)
+        // Нода нужна при запуске кошелька: доступ после первого разблокирования,
+        // только на этом устройстве. Без userPresence, чтобы не показывать
+        // лишний системный диалог до разблокировки экрана.
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeychainError(operation: "Сохранение API-секрета ноды", status: status)
         }
     }
 
@@ -359,6 +396,7 @@ enum KeychainStore {
     static func testDeleteAll(service: String) {
         try? delete(account: legacyAccount, service: service)
         try? delete(account: protectedAccount, service: service)
+        try? delete(account: nodeSecretAccount, service: service)
     }
 
     static func testHasProtectedRecord(service: String) -> Bool {

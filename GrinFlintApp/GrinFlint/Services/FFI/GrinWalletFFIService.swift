@@ -34,15 +34,28 @@ actor GrinWalletFFIService: WalletService {
     /// spendable / awaiting / locked (наногрин → Decimal GRIN при чтении)
     private(set) var balance = Balance.zero
     private(set) var transactions: [TransactionRecord] = []
+    /// Последний refresh обновил состояние из ноды (update_wallet_state).
+    private(set) var balanceIsFresh = false
 
-    init(dataDir: String, nodeURL: String, chain: Chain, password: String) throws {
+    init(
+        dataDir: String,
+        nodeURL: String,
+        chain: Chain,
+        password: String,
+        apiSecret: String? = nil
+    ) throws {
         self.password = password
         self.chain = chain
         // Журнал операций лежит рядом с данными кошелька.
         self.pending = PendingOperationsStore(
             directory: URL(fileURLWithPath: dataDir, isDirectory: true)
         )
-        self.handle = try GrinWalletHandle(dataDir: dataDir, nodeURL: nodeURL, chain: chain.rawValue)
+        self.handle = try GrinWalletHandle(
+            dataDir: dataDir,
+            nodeURL: nodeURL,
+            chain: chain.rawValue,
+            apiSecret: apiSecret ?? ""
+        )
     }
 
     /// Незавершённый перевод для экрана портфеля.
@@ -104,8 +117,7 @@ actor GrinWalletFFIService: WalletService {
             dataDir: directory.path,
             nodeURL: "http://127.0.0.1:1",
             chain: chain.rawValue
-        )
-        let _: GrinMnemonicResult = try GrinFFI.call({ h in
+        )        let _: GrinMnemonicResult = try GrinFFI.call({ h in
             grin_wallet_create_seed_at(h.raw, password, UInt32(words.count), mnemonic, 0)
         }, handle: temp, as: GrinMnemonicResult.self)
         let opened: GrinAddressResult = try GrinFFI.call({ h in
@@ -121,6 +133,7 @@ actor GrinWalletFFIService: WalletService {
             grin_wallet_balance(h.raw, 1)
         }, handle: handle, as: GrinBalanceResult.self)
         balance = Self.mapBalance(b)
+        balanceIsFresh = b.fresh
 
         let t: GrinTxsResult = try GrinFFI.call({ h in
             grin_wallet_txs(h.raw)

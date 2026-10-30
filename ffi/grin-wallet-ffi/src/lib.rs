@@ -432,11 +432,14 @@ pub extern "C" fn grin_wallet_balance(
                 return Err("нода недоступна: нет ответа get_chain_tip".into());
             }
         }
-        let (_updated, info) = w
+        let (updated, info) = w
             .owner
             .retrieve_summary_info(w.mask.as_ref(), refresh == 1, 2)
             .map_err(|e| format!("retrieve_summary_info: {e}"))?;
         Ok(json!({
+            // update_wallet_state мог вернуть false (нода ответила, но
+            // состояние кошелька не обновилось) — Swift пометит баланс stale.
+            "fresh": updated,
             "spendable": info.amount_currently_spendable,
             "awaiting": info.amount_awaiting_confirmation,
             "locked": info.amount_locked,

@@ -22,6 +22,7 @@ enum NodeProbe {
         case localhostOnDevice
         case noFFI
         case unreachable(String)
+        case unauthorized
         case unknownChain
         case wrongChain(found: String, expected: String)
 
@@ -35,6 +36,8 @@ enum NodeProbe {
                 return "Проверка сети ноды доступна только в сборке с реальным grin-wallet (FFI)."
             case .unreachable(let detail):
                 return "Нода недоступна: \(detail). Проверьте адрес, порт (13413 для testnet, 3413 для mainnet) и что нода запущена."
+            case .unauthorized:
+                return "Нода требует API-секрет (Basic Auth, пользователь grin). Укажите секрет в настройках — он хранится в Keychain."
             case .unknownChain:
                 return "Нода ответила, но её genesis-блок не совпал с ожидаемым. Это другая цепь — подключаться к ней нельзя."
             case .wrongChain(let found, let expected):
@@ -44,7 +47,11 @@ enum NodeProbe {
     }
 
     /// Проверить ноду и сверить сеть с текущей сборкой.
-    static func check(urlString: String, expected: WalletFactory.Network) async throws -> Result {
+    static func check(
+        urlString: String,
+        expected: WalletFactory.Network,
+        apiSecret: String? = nil
+    ) async throws -> Result {
         let url = try validated(urlString)
         let expectedChain = expectName(expected)
 
@@ -53,7 +60,7 @@ enum NodeProbe {
             { grin_wallet_chain_genesis(expectedChain) },
             as: GrinChainGenesis.self
         )
-        let remote = try await fetchGenesis(url: url)
+        let remote = try await fetchGenesis(url: url, apiSecret: apiSecret)
         guard let remoteHash = remote.hash, !remoteHash.isEmpty else {
             throw ProbeError.unknownChain
         }
@@ -95,7 +102,7 @@ enum NodeProbe {
         let message: String?
     }
 
-    private static func fetchGenesis(url: String) async throws -> RemoteHeader {
+    private static func fetchGenesis(url: String, apiSecret: String?) async throws -> RemoteHeader {
         guard let endpoint = URL(string: url.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v2/foreign") else {
             throw ProbeError.invalidURL("не удалось собрать URL")
         }
@@ -103,6 +110,11 @@ enum NodeProbe {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 15
+        if let secret = apiSecret?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !secret.isEmpty {
+            let credentials = Data("grin:\(secret)".utf8).base64EncodedString()
+            request.setValue("Basic \(credentials)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "jsonrpc": "2.0",
             "method": "get_header",
@@ -116,8 +128,13 @@ enum NodeProbe {
         } catch {
             throw ProbeError.unreachable(error.localizedDescription)
         }
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw ProbeError.unreachable("HTTP \(http.statusCode)")
+        if let http = response as? HTTPURLResponse {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw ProbeError.unauthorized
+            }
+            if !(200...299).contains(http.statusCode) {
+                throw ProbeError.unreachable("HTTP \(http.statusCode)")
+            }
         }
 
         let decoded: JSONRPCResponse<RemoteHeader>

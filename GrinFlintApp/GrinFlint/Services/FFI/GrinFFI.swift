@@ -102,6 +102,8 @@ struct GrinBalanceResult: Decodable {
     let awaiting: UInt64
     let locked: UInt64
     let total: UInt64
+    /// update_wallet_state обновил состояние из ноды (false — локальные данные).
+    let fresh: Bool
 }
 
 struct GrinTxItem: Decodable {

@@ -154,6 +154,15 @@ fn restore_clean_dir_then_confirmed_transfer() {
         }
         assert!(spendable > 0, "средства не найдены после восстановления");
 
+        let balance_json = take_string(grin_wallet_balance(h_a, 1))
+            .unwrap_or_else(|| panic!("balance refresh: {}", last_error()));
+        let balance_value: serde_json::Value =
+            serde_json::from_str(&balance_json).expect("balance json");
+        assert_eq!(
+            balance_value["fresh"], true,
+            "нода не подтвердила обновление состояния: {balance_json}"
+        );
+
         // --- 3) B и перевод ---
         let h_b = grin_wallet_create(
             cs(&dir_b).as_ptr(),

@@ -113,6 +113,19 @@ final class KeychainStoreTests: XCTestCase {
         XCTAssertEqual(KeychainStore.testProtectionState(service: service), .missing)
     }
 
+    func testNodeAPISecretRoundTripAndDelete() throws {
+        XCTAssertNil(try KeychainStore.loadNodeAPISecret(service: service))
+
+        try KeychainStore.saveNodeAPISecret("s3cret", service: service)
+        XCTAssertEqual(try KeychainStore.loadNodeAPISecret(service: service), "s3cret")
+
+        try KeychainStore.saveNodeAPISecret("new-secret", service: service)
+        XCTAssertEqual(try KeychainStore.loadNodeAPISecret(service: service), "new-secret")
+
+        try KeychainStore.saveNodeAPISecret("", service: service)
+        XCTAssertNil(try KeychainStore.loadNodeAPISecret(service: service))
+    }
+
     // MARK: Ошибки
 
     func testErrorDescriptionsAreActionable() {

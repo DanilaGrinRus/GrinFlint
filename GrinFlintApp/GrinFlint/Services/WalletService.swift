@@ -17,6 +17,10 @@ protocol WalletService: AnyObject {
     var transactions: [TransactionRecord] { get async }
     var slatepackAddress: String { get async }
 
+    /// Последний refresh действительно обновил состояние из ноды
+    /// (`update_wallet_state` вернул true), а не отдал локальные данные.
+    var balanceIsFresh: Bool { get async }
+
     /// Открыть существующий кошелёк (после создания/восстановления или при
     /// старте приложения). Реализация может закэшировать slatepack-адрес.
     func open() async throws
@@ -94,6 +98,7 @@ extension WalletService {
     var unavailableReason: String? { nil }
     var pendingOperation: PendingOperation? { nil }
     var journalWarning: String? { nil }
+    var balanceIsFresh: Bool { true }
     func dismissPending(id: UUID) async {}
     func markRequestSent(id: UUID) async {}
 }
@@ -107,6 +112,7 @@ final class UnavailableWalletService: WalletService {
     let balance = Balance.zero
     let transactions: [TransactionRecord] = []
     let slatepackAddress = ""
+    let balanceIsFresh = false
 
     nonisolated var backendName: String { "grin-wallet недоступен" }
     nonisolated var isDemo: Bool { false }
@@ -157,6 +163,8 @@ final class MockWalletService: WalletService {
         awaiting: Decimal(string: "12.500000000")!,
         locked: 0
     )
+    /// В демо refresh всегда считается успешным; тесты могут выставить false.
+    var balanceIsFresh = true
 
     private(set) var transactions: [TransactionRecord]
 

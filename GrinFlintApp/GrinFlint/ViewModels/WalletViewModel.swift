@@ -71,8 +71,16 @@ final class WalletViewModel {
         defer { isRefreshing = false }
         do {
             try await service.refresh()
-            // Успешный ответ ноды: баланс достоверен.
-            balanceState.updateFromNode(await service.balance)
+            let balance = await service.balance
+            if await service.balanceIsFresh {
+                // Нода ответила и update_wallet_state обновил состояние.
+                balanceState.updateFromNode(balance)
+            } else {
+                // Нода ответила, но состояние кошелька не обновилось:
+                // показываем прежние значения как stale, а не свежий ноль.
+                balanceState.updateLocally(balance)
+                balanceState.fail("нода не подтвердила обновление состояния кошелька")
+            }
             transactions = await service.transactions
             pendingOperation = await service.pendingOperation
             slatepackAddress = await service.slatepackAddress

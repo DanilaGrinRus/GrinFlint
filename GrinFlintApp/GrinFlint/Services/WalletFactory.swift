@@ -72,11 +72,18 @@ enum WalletFactory {
             // контекста; на первом запуске каталога ещё нет.
             try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
             let password = try KeychainStore.loadOrCreatePassword()
+            let apiSecret: String?
+            do {
+                apiSecret = try KeychainStore.loadNodeAPISecret()
+            } catch {
+                apiSecret = nil
+            }
             let service = try GrinWalletFFIService(
                 dataDir: dataDir.path,
                 nodeURL: Self.nodeURL,
                 chain: network == .mainnet ? .mainnet : .floonet,
-                password: password
+                password: password,
+                apiSecret: apiSecret
             )
             return service
         } catch {
