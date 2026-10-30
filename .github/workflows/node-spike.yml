@@ -162,3 +162,81 @@ jobs:
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
           tail -5 grin-restart.log || true
+
+  fast-sync:
+    name: "Fast sync с нуля: время, трафик, диск"
+    runs-on: macos-15
+    timeout-minutes: 150
+    steps:
+      - name: Скачать floonet-ноду (macOS arm64)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v5.5.2 --repo mimblewimble/grin \
+            --pattern 'grin-v5.5.2-macos-arm64.tar.gz'
+          tar xzf grin-v5.5.2-macos-arm64.tar.gz
+          GRIN_BIN="$(find "$PWD" -maxdepth 2 -name grin -type f | head -1)"
+          chmod +x "$GRIN_BIN"
+          echo "GRIN_BIN=$GRIN_BIN" >> "$GITHUB_ENV"
+          ls -lh "$GRIN_BIN"
+
+      - name: "Синк с нуля: время, RSS/footprint, диск"
+        timeout-minutes: 140
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/grin-fast"
+          rm -rf "$WORK"
+          DATA="$WORK/.grin/test"
+          mkdir -p "$DATA"
+          export HOME="$WORK"
+          ( cd "$DATA" && "$GRIN_BIN" --testnet server config >/dev/null )
+          test -f "$DATA/grin-server.toml" || { echo "нет конфига"; exit 1; }
+          echo "--- конфиг ---"
+          grep -E 'db_root|api_http_addr|chain_type|archive_mode|^port' "$DATA/grin-server.toml" || true
+          df -h "$WORK" | tail -1
+          START=$(date +%s)
+          nohup "$GRIN_BIN" --testnet --no-tui server run > "$WORK/fast.log" 2>&1 &
+          PID=$!
+          MAX_KB=0
+          MAX_FP=0
+          SYNCED=0
+          for i in $(seq 1 280); do
+            sleep 30
+            if ! kill -0 "$PID" 2>/dev/null; then
+              echo "нода завершилась"; tail -80 "$WORK/fast.log"; exit 1
+            fi
+            RSS=$(ps -o rss= -p "$PID" | tr -d ' ')
+            if [ "${RSS:-0}" -gt "$MAX_KB" ]; then MAX_KB=$RSS; fi
+            FP=$(footprint -p "$PID" 2>/dev/null \
+              | sed -n 's/.*Footprint:[[:space:]]*\([0-9][0-9]*\) MB.*/\1/p' | head -1 || true)
+            if [ -n "$FP" ] && [ "$FP" -gt "$MAX_FP" ]; then MAX_FP=$FP; fi
+            DISK=$(du -sm "$DATA" 2>/dev/null | awk '{print $1}' || true)
+            FREE=$(df -m "$WORK" | awk 'NR==2 {print $4}' || true)
+            SECRET_FILE="$DATA/.api_secret"
+            RESP=""
+            if [ -f "$SECRET_FILE" ]; then
+              RESP=$(curl -s -u "grin:$(cat "$SECRET_FILE")" -X POST http://127.0.0.1:13413/v2/owner \
+                -H 'Content-Type: application/json' \
+                -d '{"jsonrpc":"2.0","id":1,"method":"get_status","params":[]}' || true)
+            fi
+            S=$(printf '%s' "$RESP" | sed -n 's/.*"sync_status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' || true)
+            echo "poll $i: status=${S:-?} rss_mb=$((RSS / 1024)) fp_mb=${FP:-?} disk_mb=${DISK:-?} free_mb=${FREE:-?}"
+            if [ "$S" = "no_sync" ]; then SYNCED=1; break; fi
+            if [ -n "${FREE:-}" ] && [ "$FREE" -lt 2048 ]; then
+              echo "мало свободного места: ${FREE} МБ"; break
+            fi
+          done
+          ELAPSED=$(( $(date +%s) - START ))
+          sleep 5
+          IDLE_FP=$(footprint -p "$PID" 2>/dev/null \
+            | sed -n 's/.*Footprint:[[:space:]]*\([0-9][0-9]*\) MB.*/\1/p' | head -1 || true)
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          echo "fast_sync_status=$([ "$SYNCED" = 1 ] && echo no_sync || echo timeout)"
+          echo "fast_sync_seconds=$ELAPSED"
+          echo "max_rss_mb=$((MAX_KB / 1024))"
+          echo "max_footprint_mb=$MAX_FP"
+          echo "idle_footprint_mb=${IDLE_FP:-?}"
+          du -sh "$DATA"
+          echo "--- fast.log tail ---"
+          tail -40 "$WORK/fast.log" || true
