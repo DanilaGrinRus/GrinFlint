@@ -65,6 +65,18 @@ struct PortfolioView: View {
                     .font(Theme.rounded(34, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
 
+                // Явная свежесть данных: ноль при неизвестном балансе —
+                // не «достоверный ноль», а отсутствие ответа ноды.
+                Text(viewModel.balanceState.freshnessText)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(
+                        viewModel.balanceState.isUnknown || viewModel.balanceState.isStale
+                            ? Theme.warning
+                            : Theme.textTertiary
+                    )
+                    .accessibilityIdentifier("portfolio.balanceState")
+                    .accessibilityLabel(viewModel.balanceState.freshnessText)
+
                 HStack(spacing: 16) {
                     balanceChip(title: "Доступно", value: viewModel.balance.spendable)
                     balanceChip(title: "В ожидании", value: viewModel.balance.awaiting)

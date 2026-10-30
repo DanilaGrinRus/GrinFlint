@@ -5,7 +5,11 @@ import Observation
 final class WalletViewModel {
     private let service: WalletService
 
-    private(set) var balance = Balance.zero
+    /// Баланс вместе со свежестью: нули при `unknown` не считаются
+    /// достоверными, при `stale` показаны последние известные значения.
+    private(set) var balanceState = BalanceState.initial
+    /// Текущие значения для экранов (свежесть — в `balanceState`).
+    var balance: Balance { balanceState.balance }
     private(set) var transactions: [TransactionRecord] = []
     private(set) var slatepackAddress = ""
     private(set) var isRefreshing = false
@@ -27,9 +31,10 @@ final class WalletViewModel {
         self.unavailableReason = service.unavailableReason
     }
 
-    /// Загрузить состояние из сервиса (вызывать после open()/refresh()).
+    /// Загрузить состояние из сервиса (вызывать после open()/операций).
+    /// Свежесть от ноды не меняется: значения могут быть из локальной БД.
     func syncFromService() async {
-        balance = await service.balance
+        balanceState.updateLocally(await service.balance)
         transactions = await service.transactions
         slatepackAddress = await service.slatepackAddress
         pendingOperation = await service.pendingOperation
@@ -63,8 +68,14 @@ final class WalletViewModel {
         defer { isRefreshing = false }
         do {
             try await service.refresh()
-            await syncFromService()
+            // Успешный ответ ноды: баланс достоверен.
+            balanceState.updateFromNode(await service.balance)
+            transactions = await service.transactions
+            pendingOperation = await service.pendingOperation
+            slatepackAddress = await service.slatepackAddress
         } catch {
+            // Прежние значения не обнуляем: помечаем их как устаревшие.
+            balanceState.fail(error.localizedDescription)
             errorMessage = error.localizedDescription
         }
     }
